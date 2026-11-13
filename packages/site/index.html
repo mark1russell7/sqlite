@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>sqlite</title>
+<meta name="description" content="Databases on one computer through node:sqlite: safe settings, migrations, transactions, typed append-only event logs and recovery.">
+<script>
+  // The theme before the first paint: the choice of the visitor, else the theme of the system.
+  try { const t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+</script>
+<link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="./">sqlite</a>
+  <nav aria-label="Site">
+    <a href="./releases/">Releases</a>
+    <a href="./status/">Status</a>
+    <a href="https://github.com/mark1russell7/sqlite">GitHub</a>
+    <button id="theme" class="theme" type="button" aria-label="Change the theme"><span aria-hidden="true">◐</span></button>
+  </nav>
+</header>
+
+<main>
+  <h1>sqlite</h1>
+  <p class="lead">Databases on one computer through node:sqlite: safe settings, migrations, transactions, typed append-only event logs and recovery.</p>
+
+  <h2>Install</h2>
+  <div class="command">
+    <code id="install">pnpm add @mark1russell7/sqlite</code>
+    <button id="copy" type="button">Copy</button>
+  </div>
+  <p class="note">This package has no release on npm yet. <a href="./releases/">Releases</a> shows each version, and <a href="./status/">Status</a> shows the open work.</p>
+</main>
+
+<script type="module" src="./src/index.ts"></script>
+</body>
+</html>
