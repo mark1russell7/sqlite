@@ -1,0 +1,119 @@
+# The public API of @mark1russell7/sqlite
+#
+# The names of each entry of the exports field, and the declaration of each name, without comments
+# and private members. The command `api-report check` compares this file with the built .d.ts files.
+# To accept a change of the API, start the build, then `api-report update`, and review the diff.
+
+## . (build/index.d.ts): names
+
+type Accept: build/event-log.d.ts#Accept
+EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
+type EventLog: build/event-log.d.ts#EventLog
+type LogRecord: build/event-log.d.ts#LogRecord
+type MigrateOptions: build/migrate.d.ts#MigrateOptions
+type Migrated: build/migrate.d.ts#Migrated
+type Migration: build/migrate.d.ts#Migration
+type OpenOptions: build/database.d.ts#OpenOptions
+type Synchronous: build/database.d.ts#Synchronous
+type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
+type TransactionOptions: build/transaction.d.ts#TransactionOptions
+migrate: build/migrate.d.ts#migrate
+openDatabase: build/database.d.ts#openDatabase
+openEventLog: build/event-log.d.ts#openEventLog
+transaction: build/transaction.d.ts#transaction
+userVersion: build/migrate.d.ts#userVersion
+
+## ./warning (build/warning.d.ts): names
+
+SQLITE_WARNING: build/warning.d.ts#SQLITE_WARNING
+WarningTarget: build/warning.d.ts#WarningTarget
+isSqliteWarning: build/warning.d.ts#isSqliteWarning
+quietSqliteWarning: build/warning.d.ts#quietSqliteWarning
+
+## Declarations
+
+### build/database.d.ts#OpenOptions
+export interface OpenOptions {
+  readonly wal?: boolean | undefined;
+  readonly synchronous?: Synchronous | undefined;
+  readonly busyTimeoutMs?: number | undefined;
+  readonly makeFolder?: boolean | undefined;
+  readonly folderMode?: number | undefined;
+}
+
+### build/database.d.ts#Synchronous
+export type Synchronous = "OFF" | "NORMAL" | "FULL" | "EXTRA";
+
+### build/database.d.ts#openDatabase
+export declare function openDatabase(path: string, options?: OpenOptions): DatabaseSync;
+
+### build/event-log.d.ts#Accept
+export type Accept<E, P> = (event: E) => P | undefined;
+
+### build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
+export declare const EVENT_LOG_SCHEMA_VERSION: number;
+
+### build/event-log.d.ts#EventLog
+export interface EventLog<E extends LogRecord> {
+  read(): Generator<E>;
+  append<P>(event: E, accept: Accept<E, P>): P | undefined;
+  appendAll<P>(events: Iterable<E>, accept: Accept<E, P>): P[];
+  count(): number;
+  recover(): void;
+  close(): void;
+}
+
+### build/event-log.d.ts#LogRecord
+export interface LogRecord {
+  readonly id: string;
+  readonly at: string;
+  readonly type: string;
+}
+
+### build/event-log.d.ts#openEventLog
+export declare function openEventLog<E extends LogRecord>(path: string, parse: (value: unknown) => E, options?: OpenOptions): EventLog<E>;
+
+### build/migrate.d.ts#MigrateOptions
+export interface MigrateOptions {
+  readonly name?: string | undefined;
+}
+
+### build/migrate.d.ts#Migrated
+export interface Migrated {
+  readonly from: number;
+  readonly to: number;
+}
+
+### build/migrate.d.ts#Migration
+export type Migration = string | ((db: DatabaseSync) => void);
+
+### build/migrate.d.ts#migrate
+export declare function migrate(db: DatabaseSync, migrations: readonly Migration[], options?: MigrateOptions): Migrated;
+
+### build/migrate.d.ts#userVersion
+export declare function userVersion(db: DatabaseSync): number;
+
+### build/transaction.d.ts#TransactionDatabase
+export type TransactionDatabase = Pick<DatabaseSync, "exec" | "isTransaction">;
+
+### build/transaction.d.ts#TransactionOptions
+export interface TransactionOptions {
+  readonly onRollbackError?: ((error: unknown) => void) | undefined;
+}
+
+### build/transaction.d.ts#transaction
+export declare function transaction<T>(db: TransactionDatabase, work: () => T, options?: TransactionOptions): T;
+
+### build/warning.d.ts#SQLITE_WARNING
+export declare const SQLITE_WARNING = "SQLite is an experimental feature";
+
+### build/warning.d.ts#WarningTarget
+export interface WarningTarget {
+  emitWarning(warning: string | Error, ...rest: unknown[]): void;
+}
+
+### build/warning.d.ts#isSqliteWarning
+export declare function isSqliteWarning(warning: string | Error, ...rest: unknown[]): boolean;
+
+### build/warning.d.ts#quietSqliteWarning
+export declare function quietSqliteWarning(target?: WarningTarget): () => void;

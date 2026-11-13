@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json.schemastore.org/package",
+  "name": "@mark1russell7/sqlite",
+  "version": "0.1.0",
+  "description": "Databases on one computer through node:sqlite: the pragmas, migrations by user_version, BEGIN IMMEDIATE transactions, a typed append-only event log and a filter of the experimental warning.",
+  "keywords": [
+    "sqlite",
+    "node:sqlite",
+    "wal",
+    "migrations",
+    "user_version",
+    "transaction",
+    "event-log",
+    "append-only",
+    "event-sourcing",
+    "typescript"
+  ],
+  "homepage": "https://github.com/mark1russell7/sqlite/tree/main/packages/sqlite#readme",
+  "bugs": {
+    "url": "https://github.com/mark1russell7/sqlite/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mark1russell7/sqlite.git",
+    "directory": "packages/sqlite"
+  },
+  "license": "MIT",
+  "author": "Mark Russell (https://github.com/mark1russell7)",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./warning": "./src/warning.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "build"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./build/index.js",
+    "types": "./build/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./build/index.d.ts",
+        "import": "./build/index.js",
+        "default": "./build/index.js"
+      },
+      "./warning": {
+        "types": "./build/warning.d.ts",
+        "import": "./build/warning.js",
+        "default": "./build/warning.js"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "engines": {
+    "node": ">=22.16"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json"
+  },
+  "devDependencies": {
+    "@mark1russell7/cue": "^2.0.0",
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.3",
+    "esbuild": "^0.28.2",
+    "tsdown": "^0.23.7",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
