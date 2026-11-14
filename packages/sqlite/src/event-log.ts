@@ -7,7 +7,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { openDatabase, type OpenOptions } from "./database.ts";
 import { migrate, SCHEMA_VERSIONS_TABLE, type Migration } from "./migrate.ts";
-import { transaction } from "./transaction.ts";
+import { transaction, type Nested } from "./transaction.ts";
 
 /** The fields that the log reads from each event. The log keeps the full event as JSON. */
 export interface LogRecord {
@@ -106,6 +106,11 @@ export interface EventLogOptions<E> {
   readonly table?: string | undefined;
   /** This function tells if a new event is equal to the stored event with its id. The default compares the JSON text. */
   readonly equal?: Equal<E> | undefined;
+  /**
+   * This value tells what a call in a transaction of the caller does. The default is `refuse`: the call throws, and the log
+   * does not break. With `savepoint`, the writes of the call become part of the transaction of the caller.
+   */
+  readonly nested?: Nested | undefined;
 }
 
 /** The options of `openEventLog`: the options of the connection, and the equality of events. */
@@ -151,19 +156,21 @@ function checkWhole(what: string, value: number, lowest: number): void {
  *
  * The log keeps its schema version in the part `event-log:<table>` of the file (refer to `migrate`). Thus the app keeps its own
  * tables and its own steps in the same file. A call of the log in a transaction of the caller throws, and the log does not break.
+ * With `nested: "savepoint"`, the call is a savepoint of that transaction. Then the app writes its tables and the events in
+ * one transaction. When the transaction of the caller rolls back, the events roll back too, and the caller undoes its state.
  *
  * The state of the caller and the file stay equal: `accept` comes before the write. A write or an `accept` can fail with an
  * error. Then the transaction rolls back, and the log is broken. Each later call throws a `BrokenLogError` until `recover`.
  * The state of the caller can keep the events of the failed write, so the caller replays the log after `recover`.
  *
  * @param db - The connection. Set its pragmas with `openDatabase`.
- * @param options - The parse of the events, the table and the equality of events.
+ * @param options - The parse of the events, the table, the equality of events and the behavior in a transaction of the caller.
  */
 export function eventLog<E extends LogRecord>(db: DatabaseSync, options: EventLogOptions<E>): EventLog<E> {
   const table = options.table ?? DEFAULT_TABLE;
   checkTable(table);
   migrate(db, logSteps(table), { part: `event-log:${table}`, name: `log ${table}` });
-  return attach(db, table, options.parse, options.equal);
+  return attach(db, table, options.parse, options.equal, options.nested ?? "refuse");
 }
 
 /**
@@ -180,7 +187,7 @@ export function openEventLog<E extends LogRecord>(path: string, parse: (value: u
   const db = openDatabase(path, options);
   try {
     migrate(db, logSteps(DEFAULT_TABLE), { name: "log" });
-    const log = attach(db, DEFAULT_TABLE, parse, options.equal);
+    const log = attach(db, DEFAULT_TABLE, parse, options.equal, "refuse");
     return {
       ...log,
       close() {
@@ -194,7 +201,7 @@ export function openEventLog<E extends LogRecord>(path: string, parse: (value: u
 }
 
 /** This function makes the log object on a table with a current schema. */
-function attach<E extends LogRecord>(db: DatabaseSync, table: string, parse: (value: unknown) => E, equal: Equal<E> | undefined): EventLog<E> {
+function attach<E extends LogRecord>(db: DatabaseSync, table: string, parse: (value: unknown) => E, equal: Equal<E> | undefined, nested: Nested): EventLog<E> {
   const insert = db.prepare(`INSERT INTO ${table} (id, at, type, body) VALUES (?, ?, ?, ?)`);
   const byId = db.prepare(`SELECT seq, body FROM ${table} WHERE id = ?`);
   const readSql = `SELECT seq, body FROM ${table} WHERE seq > ? AND (? IS NULL OR type IN (SELECT value FROM json_each(?))) ORDER BY seq LIMIT ?`;
@@ -202,6 +209,8 @@ function attach<E extends LogRecord>(db: DatabaseSync, table: string, parse: (va
   let broken: unknown;
   /** The error of a rollback that did not end. A log with this error cannot recover. */
   let stuck: unknown;
+  /** This value is true when the failed write was a savepoint. Then the transaction of the caller stays open after the rollback. */
+  let brokenInSavepoint = false;
   const onRollbackError = (error: unknown): void => {
     stuck = error;
   };
@@ -233,9 +242,10 @@ function attach<E extends LogRecord>(db: DatabaseSync, table: string, parse: (va
     return { kind: "added", seq: Number(result.lastInsertRowid) };
   }
 
-  /** This function does the work in one transaction. A failure after the `BEGIN` breaks the log. */
+  /** This function does the work in one transaction or one savepoint. A failure after the start breaks the log. */
   function inTransaction<T>(work: () => T): T {
     guard();
+    const savepoint = nested === "savepoint" && db.isTransaction;
     let began = false;
     try {
       return transaction(
@@ -244,10 +254,13 @@ function attach<E extends LogRecord>(db: DatabaseSync, table: string, parse: (va
           began = true;
           return work();
         },
-        { onRollbackError },
+        { onRollbackError, nested },
       );
     } catch (error) {
-      if (began) broken = error;
+      if (began) {
+        broken = error;
+        brokenInSavepoint = savepoint;
+      }
       throw error;
     }
   }
@@ -292,7 +305,7 @@ function attach<E extends LogRecord>(db: DatabaseSync, table: string, parse: (va
     },
     recover() {
       if (broken === undefined) return;
-      if (stuck !== undefined || db.isTransaction) {
+      if (stuck !== undefined || (!brokenInSavepoint && db.isTransaction)) {
         throw new BrokenLogError("The rollback of the failed write did not end. Open the log again and replay it.", true, stuck ?? broken);
       }
       broken = undefined;

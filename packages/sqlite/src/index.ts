@@ -7,7 +7,7 @@
  */
 export { openDatabase, type OpenOptions, type Synchronous } from "./database.ts";
 export { migrate, SCHEMA_VERSIONS_TABLE, schemaVersion, userVersion, type MigrateOptions, type Migrated, type Migration } from "./migrate.ts";
-export { transaction, type TransactionDatabase, type TransactionOptions } from "./transaction.ts";
+export { transaction, type Nested, type TransactionDatabase, type TransactionOptions } from "./transaction.ts";
 export {
   BrokenLogError,
   EVENT_LOG_SCHEMA_VERSION,

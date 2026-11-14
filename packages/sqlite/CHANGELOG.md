@@ -1,5 +1,15 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.2.2
+
+This version adds savepoints. The change is backward compatible.
+
+- `transaction` has the option `nested`. With `savepoint`, a call in a transaction is a savepoint of that transaction. An error rolls back only the writes of the work. The default `refuse` keeps the old behavior.
+- `eventLog` has the option `nested`. With `savepoint`, the app writes its tables and the events of the log in one transaction.
+- The type `Nested` is new.
+
+Runtime dependencies: none.
+
 ## 0.2.1
 
 This version adds the recovery of a broken file. The change is backward compatible.

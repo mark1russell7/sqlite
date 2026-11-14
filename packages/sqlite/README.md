@@ -77,7 +77,21 @@ const added = transaction(db, () => {
 - When the work or the commit throws, the function rolls back and throws the same error.
 - The work is synchronous. A work that gives a promise is an error.
 - A call in a transaction throws, because SQLite refuses a nested `BEGIN`.
+- With `nested: "savepoint"`, a call in a transaction is a savepoint of that transaction. Out of a transaction, the call is a plain transaction.
 - `onRollbackError` gets the error of a rollback that did not end.
+
+A savepoint lets a store join the transaction of its caller. An error of the work rolls back only the writes of the work, and the transaction of the caller continues:
+
+```ts
+transaction(db, () => {
+  db.prepare("INSERT INTO notes VALUES (?, ?)").run("n2", "second");
+  try {
+    transaction(db, () => importNotes(db), { nested: "savepoint" });
+  } catch (error) {
+    report(error); // the import rolled back, and the note n2 stays
+  }
+});
+```
 
 ## The event log
 
@@ -138,6 +152,7 @@ const reports = eventLog(db, { parse: parseReport, table: "reports" });
 
 - The log keeps its version in the part `event-log:<table>`. `EVENT_LOG_SCHEMA_VERSION` is the version that it writes.
 - The log does not close the connection. A call of the log in a transaction of the caller throws.
+- With `nested: "savepoint"`, a call of the log joins the transaction of the caller. Then the app writes its tables and the events in one transaction. When that transaction rolls back, the events roll back too.
 - `openEventLog` opens a log in its own file, with the table `events`. That log owns the `user_version` of its file.
 
 ### A failed write
