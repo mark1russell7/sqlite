@@ -1,6 +1,6 @@
 /**
  * Databases on one computer through `node:sqlite`: the connection with its pragmas, the migrations by schema version and
- * the write transaction. The package also has a typed append-only event log and the faults of SQLite. The entry
+ * the write transaction. The package also has a typed append-only event log, the faults of SQLite and the recovery of a broken file. The entry
  * `@mark1russell7/sqlite/warning` has the filter of the experimental warning.
  *
  * @packageDocumentation
@@ -24,4 +24,20 @@ export {
   type LogRecord,
   type ReadOptions,
 } from "./event-log.ts";
+export {
+  checkIntegrity,
+  IntegrityError,
+  openOrQuarantine,
+  quarantine,
+  salvageEventLog,
+  snapshot,
+  type Integrity,
+  type IntegrityOptions,
+  type Quarantined,
+  type QuarantineOptions,
+  type Recovered,
+  type SalvageOptions,
+  type Salvaged,
+  type Snapshot,
+} from "./recovery.ts";
 export { SQLITE_FAULT_ACTIONS, sqliteFault, type SqliteFault, type SqliteFaultAction, type SqliteFaultKind } from "./faults.ts";

@@ -1,6 +1,6 @@
 # @mark1russell7/sqlite
 
-Databases on one computer through `node:sqlite`. The package has the connection with its pragmas, the migrations by schema version and the write transaction. It also has a typed append-only event log and the faults of SQLite. It has no dependencies.
+Databases on one computer through `node:sqlite`. The package has the connection with its pragmas, the migrations by schema version and the write transaction. It also has a typed append-only event log, the faults of SQLite and the recovery of a broken file. It has no dependencies.
 
 ```sh
 npm install @mark1russell7/sqlite
@@ -173,6 +173,46 @@ try {
 - The function reads the error and then its chain of causes. Thus it finds the fault in a `BrokenLogError`.
 - It gives `undefined` for an error that is not of SQLite.
 - `SQLITE_FAULT_ACTIONS` is the table of the action of each kind.
+
+## The recovery of a broken file
+
+A power cut, a bad disk or a copy of an open file can break a file. These functions find a broken file, move it away and keep its data.
+
+| Function | What it does |
+| --- | --- |
+| `checkIntegrity(db, { quick, limit })` | It does `PRAGMA integrity_check` or `quick_check`, and gives `{ ok, problems }`. A file that is not a database gives a problem, not an error. |
+| `quarantine(path)` | It moves the file and its WAL, SHM and journal files into a new folder `<name>.broken-<time>`. |
+| `openOrQuarantine(path, open)` | It opens the file. When the file is broken, it moves the file into quarantine and opens an empty file. |
+| `salvageEventLog(source, log, { parse })` | It reads the readable events of a broken log, and appends them to a new log. |
+| `snapshot(db, path)` | It writes a consistent copy of an open database with `VACUUM INTO`, and then replaces the file at the path. |
+
+```ts
+import { checkIntegrity, eventLog, IntegrityError, openDatabase, openOrQuarantine, salvageEventLog } from "@mark1russell7/sqlite";
+
+const open = (path: string) => {
+  const db = openDatabase(path, { busyTimeoutMs: 5000 });
+  try {
+    const integrity = checkIntegrity(db, { quick: true });
+    if (!integrity.ok) throw new IntegrityError(integrity.problems);
+    return { db, log: eventLog(db, { parse }) };
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+};
+
+const { value, quarantined } = openOrQuarantine("data/app.db", open);
+if (quarantined?.database !== undefined) {
+  const salvaged = salvageEventLog(quarantined.database, value.log, { parse });
+  report(salvaged.added, salvaged.lost, salvaged.problems);
+}
+```
+
+- Close each connection to a file before its quarantine. The WAL file moves before the main file, so a new file does not get the old WAL.
+- `openOrQuarantine` starts the quarantine only for the kinds `corrupt` and `not-a-database`. An `IntegrityError` has the kind `corrupt`.
+- `open` must close its connection when it throws. Each other error goes to the caller.
+- `salvageEventLog` opens the broken file read-only. After a broken page, it reads each later position alone, and counts the lost positions.
+- `snapshot` does not stop the writers. Use it for a backup or for a copy to a different computer.
 
 ## The experimental warning
 

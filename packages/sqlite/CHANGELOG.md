@@ -1,5 +1,17 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.2.1
+
+This version adds the recovery of a broken file. The change is backward compatible.
+
+- `checkIntegrity` does the integrity check of SQLite and gives the problems. `IntegrityError` has the kind `corrupt` for `sqliteFault`.
+- `quarantine` moves a file and its WAL, SHM and journal files into a new folder.
+- `openOrQuarantine` opens a file, and moves a broken file into quarantine before a second open.
+- `salvageEventLog` reads the readable events of a broken log into a new log, and counts the lost positions.
+- `snapshot` writes a consistent copy of an open database with `VACUUM INTO`.
+
+Runtime dependencies: none.
+
 ## 0.2.0
 
 This version makes the event log a grow-only set, for the merge of copies of one log. The change of the results of `append` and `appendAll` breaks old callers.

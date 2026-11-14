@@ -15,26 +15,40 @@ type EventLog: build/event-log.d.ts#EventLog
 type EventLogFile: build/event-log.d.ts#EventLogFile
 type EventLogFileOptions: build/event-log.d.ts#EventLogFileOptions
 type EventLogOptions: build/event-log.d.ts#EventLogOptions
+type Integrity: build/recovery.d.ts#Integrity
+IntegrityError: build/recovery.d.ts#IntegrityError
+type IntegrityOptions: build/recovery.d.ts#IntegrityOptions
 type LogEntry: build/event-log.d.ts#LogEntry
 type LogRecord: build/event-log.d.ts#LogRecord
 type MigrateOptions: build/migrate.d.ts#MigrateOptions
 type Migrated: build/migrate.d.ts#Migrated
 type Migration: build/migrate.d.ts#Migration
 type OpenOptions: build/database.d.ts#OpenOptions
+type QuarantineOptions: build/recovery.d.ts#QuarantineOptions
+type Quarantined: build/recovery.d.ts#Quarantined
 type ReadOptions: build/event-log.d.ts#ReadOptions
+type Recovered: build/recovery.d.ts#Recovered
 SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
 SQLITE_FAULT_ACTIONS: build/faults.d.ts#SQLITE_FAULT_ACTIONS
+type SalvageOptions: build/recovery.d.ts#SalvageOptions
+type Salvaged: build/recovery.d.ts#Salvaged
+type Snapshot: build/recovery.d.ts#Snapshot
 type SqliteFault: build/faults.d.ts#SqliteFault
 type SqliteFaultAction: build/faults.d.ts#SqliteFaultAction
 type SqliteFaultKind: build/faults.d.ts#SqliteFaultKind
 type Synchronous: build/database.d.ts#Synchronous
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
+checkIntegrity: build/recovery.d.ts#checkIntegrity
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
 openDatabase: build/database.d.ts#openDatabase
 openEventLog: build/event-log.d.ts#openEventLog
+openOrQuarantine: build/recovery.d.ts#openOrQuarantine
+quarantine: build/recovery.d.ts#quarantine
+salvageEventLog: build/recovery.d.ts#salvageEventLog
 schemaVersion: build/migrate.d.ts#schemaVersion
+snapshot: build/recovery.d.ts#snapshot
 sqliteFault: build/faults.d.ts#sqliteFault
 transaction: build/transaction.d.ts#transaction
 userVersion: build/migrate.d.ts#userVersion
@@ -198,6 +212,85 @@ export declare function schemaVersion(db: DatabaseSync, part?: string): number;
 
 ### build/migrate.d.ts#userVersion
 export declare function userVersion(db: DatabaseSync): number;
+
+### build/recovery.d.ts#Integrity
+export interface Integrity {
+  readonly ok: boolean;
+  readonly problems: readonly string[];
+}
+
+### build/recovery.d.ts#IntegrityError
+export declare class IntegrityError extends Error {
+  override readonly name = "IntegrityError";
+  readonly code = "ERR_SQLITE_ERROR";
+  readonly errcode = 11;
+  readonly errstr = "database disk image is malformed";
+  readonly problems: readonly string[];
+  constructor(problems: readonly string[]);
+}
+
+### build/recovery.d.ts#IntegrityOptions
+export interface IntegrityOptions {
+  readonly quick?: boolean | undefined;
+  readonly limit?: number | undefined;
+}
+
+### build/recovery.d.ts#QuarantineOptions
+export interface QuarantineOptions {
+  readonly folder?: string | undefined;
+  readonly now?: Date | undefined;
+}
+
+### build/recovery.d.ts#Quarantined
+export interface Quarantined {
+  readonly folder: string;
+  readonly database: string | undefined;
+  readonly files: readonly string[];
+}
+
+### build/recovery.d.ts#Recovered
+export interface Recovered<T> {
+  readonly value: T;
+  readonly quarantined: Quarantined | undefined;
+  readonly fault: SqliteFault | undefined;
+}
+
+### build/recovery.d.ts#SalvageOptions
+export interface SalvageOptions<E> {
+  readonly parse: (value: unknown) => E;
+  readonly table?: string | undefined;
+}
+
+### build/recovery.d.ts#Salvaged
+export interface Salvaged {
+  readonly read: number;
+  readonly added: number;
+  readonly duplicate: number;
+  readonly conflict: number;
+  readonly lost: number;
+  readonly problems: readonly string[];
+}
+
+### build/recovery.d.ts#Snapshot
+export interface Snapshot {
+  readonly path: string;
+  readonly bytes: number;
+}
+
+### build/recovery.d.ts#checkIntegrity
+export declare function checkIntegrity(db: DatabaseSync, options?: IntegrityOptions): Integrity;
+
+### build/recovery.d.ts#openOrQuarantine
+export declare function openOrQuarantine<T>(path: string, open: (path: string) => T, options?: QuarantineOptions): Recovered<T>;
+
+### build/recovery.d.ts#quarantine
+export declare function quarantine(path: string, options?: QuarantineOptions): Quarantined;
+
+### build/recovery.d.ts#salvageEventLog
+export declare function salvageEventLog<E extends LogRecord>(source: string, target: EventLog<E>, options: SalvageOptions<E>): Salvaged;
+
+### build/recovery.d.ts#snapshot
+export declare function snapshot(db: DatabaseSync, path: string): Snapshot;
 
 ### build/transaction.d.ts#TransactionDatabase
 export type TransactionDatabase = Pick<DatabaseSync, "exec" | "isTransaction">;
