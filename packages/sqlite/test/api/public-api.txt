@@ -9,6 +9,7 @@
 type Accept: build/event-log.d.ts#Accept
 type Appended: build/event-log.d.ts#Appended
 BrokenLogError: build/event-log.d.ts#BrokenLogError
+type ColumnDefinitions: build/migrate.d.ts#ColumnDefinitions
 EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
 type Equal: build/event-log.d.ts#Equal
 type EventLog: build/event-log.d.ts#EventLog
@@ -40,6 +41,7 @@ type SqliteFaultKind: build/faults.d.ts#SqliteFaultKind
 type Synchronous: build/database.d.ts#Synchronous
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
+addMissingColumns: build/migrate.d.ts#addMissingColumns
 checkIntegrity: build/recovery.d.ts#checkIntegrity
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
@@ -51,6 +53,7 @@ salvageEventLog: build/recovery.d.ts#salvageEventLog
 schemaVersion: build/migrate.d.ts#schemaVersion
 snapshot: build/recovery.d.ts#snapshot
 sqliteFault: build/faults.d.ts#sqliteFault
+tableColumns: build/migrate.d.ts#tableColumns
 transaction: build/transaction.d.ts#transaction
 userVersion: build/migrate.d.ts#userVersion
 
@@ -188,6 +191,9 @@ export type SqliteFaultKind = "sql" | "internal" | "permission" | "aborted" | "b
 ### build/faults.d.ts#sqliteFault
 export declare function sqliteFault(error: unknown): SqliteFault | undefined;
 
+### build/migrate.d.ts#ColumnDefinitions
+export type ColumnDefinitions = Readonly<Record<string, string>>;
+
 ### build/migrate.d.ts#MigrateOptions
 export interface MigrateOptions {
   readonly name?: string | undefined;
@@ -206,11 +212,17 @@ export type Migration = string | ((db: DatabaseSync) => void);
 ### build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
 export declare const SCHEMA_VERSIONS_TABLE = "schema_versions";
 
+### build/migrate.d.ts#addMissingColumns
+export declare function addMissingColumns(db: DatabaseSync, table: string, columns: ColumnDefinitions): string[];
+
 ### build/migrate.d.ts#migrate
 export declare function migrate(db: DatabaseSync, migrations: readonly Migration[], options?: MigrateOptions): Migrated;
 
 ### build/migrate.d.ts#schemaVersion
 export declare function schemaVersion(db: DatabaseSync, part?: string): number;
+
+### build/migrate.d.ts#tableColumns
+export declare function tableColumns(db: DatabaseSync, table: string): string[];
 
 ### build/migrate.d.ts#userVersion
 export declare function userVersion(db: DatabaseSync): number;

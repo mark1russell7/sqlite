@@ -1,5 +1,16 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.2.3
+
+This version adds the adoption of the file of an older app. The change is backward compatible.
+
+- `addMissingColumns` adds each column that a table does not have, and gives the names of the added columns.
+- `tableColumns` gives the columns of a table in their order.
+- The type `ColumnDefinitions` is new.
+- The README has a recipe: a first step with `CREATE TABLE IF NOT EXISTS` and `addMissingColumns` adopts a file at `user_version` 0.
+
+Runtime dependencies: none.
+
 ## 0.2.2
 
 This version adds savepoints. The change is backward compatible.

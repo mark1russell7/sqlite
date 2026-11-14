@@ -6,7 +6,18 @@
  * @packageDocumentation
  */
 export { openDatabase, type OpenOptions, type Synchronous } from "./database.ts";
-export { migrate, SCHEMA_VERSIONS_TABLE, schemaVersion, userVersion, type MigrateOptions, type Migrated, type Migration } from "./migrate.ts";
+export {
+  addMissingColumns,
+  migrate,
+  SCHEMA_VERSIONS_TABLE,
+  schemaVersion,
+  tableColumns,
+  userVersion,
+  type ColumnDefinitions,
+  type MigrateOptions,
+  type Migrated,
+  type Migration,
+} from "./migrate.ts";
 export { transaction, type Nested, type TransactionDatabase, type TransactionOptions } from "./transaction.ts";
 export {
   BrokenLogError,

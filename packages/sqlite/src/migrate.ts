@@ -116,3 +116,58 @@ export function migrate(db: DatabaseSync, migrations: readonly Migration[], opti
   }
   return { from, to: version };
 }
+
+/**
+ * The columns that a table must have: the name of each column and its definition, for example `REAL` or
+ * `TEXT NOT NULL DEFAULT ''`. A definition is SQL of the app. Do not make it from the input of a user.
+ */
+export type ColumnDefinitions = Readonly<Record<string, string>>;
+
+const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** This function throws when a name is not a plain SQL name, or when it starts with `sqlite_`. */
+function checkIdentifier(what: string, name: string): void {
+  if (!IDENTIFIER.test(name) || name.toLowerCase().startsWith("sqlite_")) {
+    throw new RangeError(`${what} must be a name of letters, digits and underscores that does not start with sqlite_, not ${JSON.stringify(name)}.`);
+  }
+}
+
+/**
+ * This function gives the names of the columns of a table, in the order of the table. A table that does not exist gives an
+ * empty list.
+ *
+ * @param db - The connection.
+ * @param table - The name of the table.
+ */
+export function tableColumns(db: DatabaseSync, table: string): string[] {
+  checkIdentifier("The name of a table", table);
+  return (db.prepare("SELECT name FROM pragma_table_info(?)").all(table) as { name: string }[]).map((row) => row.name);
+}
+
+/**
+ * This function adds each column that a table does not have, and gives the names of the added columns in their order.
+ *
+ * An older version of an app can have made the table with fewer columns. The first step of a schema can do
+ * `CREATE TABLE IF NOT EXISTS` and then this function. Such a step adopts a file of each older version at `user_version` 0.
+ *
+ * The comparison of names ignores case, as SQLite does. `ALTER TABLE ADD COLUMN` sets the rules of a definition: for
+ * example, a `NOT NULL` column needs a default. The function examines each name before it changes the table.
+ *
+ * @param db - The connection.
+ * @param table - The name of the table. The table must exist.
+ * @param columns - The columns that the table must have.
+ */
+export function addMissingColumns(db: DatabaseSync, table: string, columns: ColumnDefinitions): string[] {
+  const names = Object.keys(columns);
+  for (const name of names) checkIdentifier("The name of a column", name);
+  const present = new Set(tableColumns(db, table).map((name) => name.toLowerCase()));
+  if (present.size === 0) throw new Error(`The table ${table} does not exist. Make the table before you add columns to it.`);
+  const added: string[] = [];
+  for (const name of names) {
+    if (present.has(name.toLowerCase())) continue;
+    db.exec(`ALTER TABLE "${table}" ADD COLUMN "${name}" ${columns[name] as string}`);
+    present.add(name.toLowerCase());
+    added.push(name);
+  }
+  return added;
+}
