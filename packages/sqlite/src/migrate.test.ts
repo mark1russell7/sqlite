@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "./database.ts";
-import { migrate, userVersion, type Migration } from "./migrate.ts";
+import { migrate, SCHEMA_VERSIONS_TABLE, schemaVersion, userVersion, type Migration } from "./migrate.ts";
 
 let folder: string;
 let file: string;
@@ -92,5 +92,49 @@ describe("migrate", () => {
     expect(migrate(racing, steps)).toEqual({ from: 0, to: 2 });
     expect(raced).toBe(true);
     expect(tables(second)).toEqual(["a", "b"]);
+  });
+});
+
+describe("migrate with parts", () => {
+  const other: Migration[] = ["CREATE TABLE c (z INTEGER)"];
+
+  it("keeps a version for each part, and does not change the user_version", () => {
+    const db = connect();
+    expect(schemaVersion(db, "app")).toBe(0);
+    expect(migrate(db, steps, { part: "app" })).toEqual({ from: 0, to: 2 });
+    expect(migrate(db, other, { part: "lib" })).toEqual({ from: 0, to: 1 });
+    expect(schemaVersion(db, "app")).toBe(2);
+    expect(schemaVersion(db, "lib")).toBe(1);
+    expect(schemaVersion(db)).toBe(0);
+    expect(userVersion(db)).toBe(0);
+    expect(tables(db)).toEqual(["a", "b", "c", SCHEMA_VERSIONS_TABLE]);
+  });
+
+  it("keeps the parts apart from the user_version of the file", () => {
+    const db = connect();
+    migrate(db, other);
+    expect(migrate(db, steps, { part: "app" })).toEqual({ from: 0, to: 2 });
+    expect(userVersion(db)).toBe(1);
+    expect(migrate(db, steps, { part: "app" })).toEqual({ from: 2, to: 2 });
+  });
+
+  it("refuses a part from a newer version, with the name of the part", () => {
+    const db = connect();
+    migrate(db, steps, { part: "app" });
+    expect(() => migrate(db, other, { part: "app" })).toThrow("The part app has the schema version 2, and this code knows only 1. Use a newer version of the app.");
+    expect(() => migrate(db, other, { part: "app", name: "store" })).toThrow(/^The store has the schema version 2/);
+  });
+
+  it("rolls back the version of a part with its step", () => {
+    const db = connect();
+    expect(() => migrate(db, ["CREATE TABLE a (x INTEGER); INSERT INTO nothing VALUES (1)"], { part: "app" })).toThrow(/nothing/);
+    expect(schemaVersion(db, "app")).toBe(0);
+    expect(tables(db)).toEqual([]);
+  });
+
+  it("refuses an empty part name", () => {
+    const db = connect();
+    expect(() => migrate(db, steps, { part: "" })).toThrow(RangeError);
+    expect(() => schemaVersion(db, "")).toThrow(RangeError);
   });
 });

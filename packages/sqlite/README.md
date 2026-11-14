@@ -1,6 +1,6 @@
 # @mark1russell7/sqlite
 
-Databases on one computer through `node:sqlite`. The package has the connection with its pragmas, the migrations by `user_version`, the write transaction and a typed append-only event log. It has no dependencies.
+Databases on one computer through `node:sqlite`. The package has the connection with its pragmas, the migrations by schema version and the write transaction. It also has a typed append-only event log and the faults of SQLite. It has no dependencies.
 
 ```sh
 npm install @mark1russell7/sqlite
@@ -46,6 +46,21 @@ migrate(db, steps); // { from: 0, to: 2 }
 - A file with more steps than the list is from a newer version of the app, and the function throws.
 - Do not change a step that a file can have. Add a new step.
 
+### A version for each part of a file
+
+A library and the app can keep their tables in one file. Each part then has its own list of steps and its own version. The option `part` names the part.
+
+```ts
+import { migrate, schemaVersion } from "@mark1russell7/sqlite";
+
+migrate(db, appSteps, { part: "app" });
+schemaVersion(db, "app"); // the count of steps of the part app
+```
+
+- The versions of the parts are in the table `schema_versions`. The `user_version` of the file does not change.
+- A migration without `part` uses the `user_version`, as before.
+- The option `name` sets the name of the database in the error of a newer file.
+
 ## Transactions
 
 `transaction` does the work in one `BEGIN IMMEDIATE` transaction and gives the result of the work. The write lock comes at the start, so a different writer cannot cause a failure in the middle of the work.
@@ -66,7 +81,7 @@ const added = transaction(db, () => {
 
 ## The event log
 
-`openEventLog` opens a typed append-only log of events in one file. The caller keeps a state, and `accept` changes it before the write. Thus the state and the file stay equal.
+The event log is a typed append-only list of events, and a grow-only set: an event that the log has already changes nothing. Thus two copies that exchange their events get the same set, in each order of arrival.
 
 ```ts
 import { openEventLog, type LogRecord } from "@mark1russell7/sqlite";
@@ -78,21 +93,86 @@ interface Added extends LogRecord {
 
 const names = new Set<string>();
 const accept = (event: Added): string | undefined => {
-  if (names.has(event.name)) return "duplicate";
+  if (names.has(event.name)) return "the name is in use";
   names.add(event.name);
   return undefined;
 };
 
 const log = openEventLog("data/events.db", (value) => value as Added);
 for (const event of log.read()) accept(event);
-log.append({ id: "e1", at: new Date().toISOString(), type: "added", name: "a" }, accept);
+log.append({ id: "e1", at: new Date().toISOString(), type: "added", name: "a" }, accept); // { kind: "added", seq: 1 }
+log.append({ id: "e1", at: "2026-11-14T00:00:00Z", type: "added", name: "b" }); // { kind: "conflict", seq: 1, stored: ... }
 ```
 
-- `append` and `appendAll` give the problems of the refused events. A refused event is not written.
-- A failed write or `accept` rolls back and breaks the log. Each later call throws until `recover`. Then the caller replays the log.
-- `recover` throws when the rollback did not end. Then open the log again.
-- The log owns the `user_version` of its file. `EVENT_LOG_SCHEMA_VERSION` is the version that it writes.
-- The third argument has the options of `openDatabase`.
+`append` gives one result, and `appendAll` gives one result for each event, in one transaction:
+
+| Result | When | What changes |
+| --- | --- | --- |
+| `added` | The log does not have the id, and `accept` accepts the event. | The log writes the event at the position `seq`. |
+| `duplicate` | The log has an equal event with the same id. | Nothing. `accept` does not get the event. |
+| `conflict` | The log has a different event with the same id. | Nothing. The result has the stored event. |
+| `refused` | `accept` gives a problem. | Nothing. The result has the problem. |
+
+- The default equality compares the JSON text of the two events. The option `equal` sets a different equality.
+- Give each event an id from its content, for example a hash. Then a second report of the same fact is a duplicate.
+- `accept` is optional. It gets only an event with a new id, before the write. Then the state of the caller and the file stay equal.
+
+### Reads
+
+- `read()` gives the events in the order of the log. `entries()` gives each event with its position `seq`.
+- The option `after` gives only the events after a position. `types` gives only the events of some types. `limit` sets the highest count.
+- `head()` gives the position of the last event. A read with `after: head` later gives only the new events.
+- `get(id)` gives the event with an id and its position.
+
+### A log in the file of the app
+
+`eventLog` opens a log in a table of a connection of the caller. The app keeps its own tables in the same file, and one file can have many logs.
+
+```ts
+import { eventLog, migrate, openDatabase } from "@mark1russell7/sqlite";
+
+const db = openDatabase("data/app.db", { busyTimeoutMs: 5000 });
+migrate(db, appSteps, { part: "app" });
+const reports = eventLog(db, { parse: parseReport, table: "reports" });
+```
+
+- The log keeps its version in the part `event-log:<table>`. `EVENT_LOG_SCHEMA_VERSION` is the version that it writes.
+- The log does not close the connection. A call of the log in a transaction of the caller throws.
+- `openEventLog` opens a log in its own file, with the table `events`. That log owns the `user_version` of its file.
+
+### A failed write
+
+- A failed write or `accept` rolls back and breaks the log. Each later call throws a `BrokenLogError` until `recover`.
+- After `recover`, the caller replays the log, because its state can have the events of the failed write.
+- `recover` throws when the rollback did not end. Then the error has `stuck: true`. Open the log again.
+- A lock that is not free at the start does not break the log. The call throws, and nothing changes.
+
+## The faults of SQLite
+
+`sqliteFault` gives the kind of an error of SQLite and the action that it needs. The function reads the result code, not the text of the message.
+
+```ts
+import { sqliteFault } from "@mark1russell7/sqlite";
+
+try {
+  log.append(event);
+} catch (error) {
+  const fault = sqliteFault(error);
+  if (fault?.action === "retry") schedule(event);
+  else throw error;
+}
+```
+
+| Action | Kinds | What to do |
+| --- | --- | --- |
+| `retry` | `busy`, `locked`, `aborted`, `interrupted`, `protocol`, `schema` | Do the work again later. |
+| `quarantine` | `corrupt`, `not-a-database` | Move the file away. Make the data again from its source or from a copy. |
+| `operator` | `full`, `io`, `read-only`, `cannot-open`, `permission`, `no-memory`, `no-lfs`, `other` | Tell a person: the computer needs more disk space, an access, a path or memory. |
+| `bug` | `sql`, `constraint`, `mismatch`, `misuse`, `range`, `too-big`, `not-found`, `internal`, `authorization` | Correct the program. The same work fails again. |
+
+- The function reads the error and then its chain of causes. Thus it finds the fault in a `BrokenLogError`.
+- It gives `undefined` for an error that is not of SQLite.
+- `SQLITE_FAULT_ACTIONS` is the table of the action of each kind.
 
 ## The experimental warning
 

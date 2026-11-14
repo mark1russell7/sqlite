@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@mark1russell7/sqlite",
-  "version": "0.1.0",
-  "description": "Databases on one computer through node:sqlite: the pragmas, migrations by user_version, BEGIN IMMEDIATE transactions, a typed append-only event log and a filter of the experimental warning.",
+  "version": "0.2.0",
+  "description": "Databases on one computer through node:sqlite: the pragmas, migrations by schema version, BEGIN IMMEDIATE transactions, a typed append-only event log as a grow-only set, the faults of SQLite and a filter of the experimental warning.",
   "keywords": [
     "sqlite",
     "node:sqlite",
@@ -13,7 +13,10 @@
     "event-log",
     "append-only",
     "event-sourcing",
-    "typescript"
+    "typescript",
+    "grow-only-set",
+    "crdt",
+    "error-codes"
   ],
   "homepage": "https://github.com/mark1russell7/sqlite/tree/main/packages/sqlite#readme",
   "bugs": {
@@ -69,6 +72,7 @@
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.3",
     "esbuild": "^0.28.2",
+    "fast-check": "^4.10.2",
     "tsdown": "^0.23.7",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"

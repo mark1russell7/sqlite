@@ -7,19 +7,35 @@
 ## . (build/index.d.ts): names
 
 type Accept: build/event-log.d.ts#Accept
+type Appended: build/event-log.d.ts#Appended
+BrokenLogError: build/event-log.d.ts#BrokenLogError
 EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
+type Equal: build/event-log.d.ts#Equal
 type EventLog: build/event-log.d.ts#EventLog
+type EventLogFile: build/event-log.d.ts#EventLogFile
+type EventLogFileOptions: build/event-log.d.ts#EventLogFileOptions
+type EventLogOptions: build/event-log.d.ts#EventLogOptions
+type LogEntry: build/event-log.d.ts#LogEntry
 type LogRecord: build/event-log.d.ts#LogRecord
 type MigrateOptions: build/migrate.d.ts#MigrateOptions
 type Migrated: build/migrate.d.ts#Migrated
 type Migration: build/migrate.d.ts#Migration
 type OpenOptions: build/database.d.ts#OpenOptions
+type ReadOptions: build/event-log.d.ts#ReadOptions
+SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
+SQLITE_FAULT_ACTIONS: build/faults.d.ts#SQLITE_FAULT_ACTIONS
+type SqliteFault: build/faults.d.ts#SqliteFault
+type SqliteFaultAction: build/faults.d.ts#SqliteFaultAction
+type SqliteFaultKind: build/faults.d.ts#SqliteFaultKind
 type Synchronous: build/database.d.ts#Synchronous
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
+eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
 openDatabase: build/database.d.ts#openDatabase
 openEventLog: build/event-log.d.ts#openEventLog
+schemaVersion: build/migrate.d.ts#schemaVersion
+sqliteFault: build/faults.d.ts#sqliteFault
 transaction: build/transaction.d.ts#transaction
 userVersion: build/migrate.d.ts#userVersion
 
@@ -50,17 +66,68 @@ export declare function openDatabase(path: string, options?: OpenOptions): Datab
 ### build/event-log.d.ts#Accept
 export type Accept<E, P> = (event: E) => P | undefined;
 
+### build/event-log.d.ts#Appended
+export type Appended<E, P> = {
+  readonly kind: "added";
+  readonly seq: number;
+} | {
+  readonly kind: "duplicate";
+  readonly seq: number;
+} | {
+  readonly kind: "conflict";
+  readonly seq: number;
+  readonly stored: E;
+} | {
+  readonly kind: "refused";
+  readonly problem: P;
+};
+
+### build/event-log.d.ts#BrokenLogError
+export declare class BrokenLogError extends Error {
+  override readonly name = "BrokenLogError";
+  readonly stuck: boolean;
+  constructor(message: string, stuck: boolean, cause: unknown);
+}
+
 ### build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
 export declare const EVENT_LOG_SCHEMA_VERSION: number;
 
+### build/event-log.d.ts#Equal
+export type Equal<E> = (stored: E, event: E) => boolean;
+
 ### build/event-log.d.ts#EventLog
 export interface EventLog<E extends LogRecord> {
-  read(): Generator<E>;
-  append<P>(event: E, accept: Accept<E, P>): P | undefined;
-  appendAll<P>(events: Iterable<E>, accept: Accept<E, P>): P[];
+  read(options?: ReadOptions): Generator<E>;
+  entries(options?: ReadOptions): Generator<LogEntry<E>>;
+  get(id: string): LogEntry<E> | undefined;
+  head(): number;
+  append<P = never>(event: E, accept?: Accept<E, P>): Appended<E, P>;
+  appendAll<P = never>(events: Iterable<E>, accept?: Accept<E, P>): Appended<E, P>[];
   count(): number;
   recover(): void;
+}
+
+### build/event-log.d.ts#EventLogFile
+export interface EventLogFile<E extends LogRecord> extends EventLog<E> {
   close(): void;
+}
+
+### build/event-log.d.ts#EventLogFileOptions
+export interface EventLogFileOptions<E> extends OpenOptions {
+  readonly equal?: Equal<E> | undefined;
+}
+
+### build/event-log.d.ts#EventLogOptions
+export interface EventLogOptions<E> {
+  readonly parse: (value: unknown) => E;
+  readonly table?: string | undefined;
+  readonly equal?: Equal<E> | undefined;
+}
+
+### build/event-log.d.ts#LogEntry
+export interface LogEntry<E> {
+  readonly seq: number;
+  readonly event: E;
 }
 
 ### build/event-log.d.ts#LogRecord
@@ -70,12 +137,45 @@ export interface LogRecord {
   readonly type: string;
 }
 
+### build/event-log.d.ts#ReadOptions
+export interface ReadOptions {
+  readonly after?: number | undefined;
+  readonly types?: readonly string[] | undefined;
+  readonly limit?: number | undefined;
+}
+
+### build/event-log.d.ts#eventLog
+export declare function eventLog<E extends LogRecord>(db: DatabaseSync, options: EventLogOptions<E>): EventLog<E>;
+
 ### build/event-log.d.ts#openEventLog
-export declare function openEventLog<E extends LogRecord>(path: string, parse: (value: unknown) => E, options?: OpenOptions): EventLog<E>;
+export declare function openEventLog<E extends LogRecord>(path: string, parse: (value: unknown) => E, options?: EventLogFileOptions<E>): EventLogFile<E>;
+
+### build/faults.d.ts#SQLITE_FAULT_ACTIONS
+export declare const SQLITE_FAULT_ACTIONS: Readonly<Record<SqliteFaultKind, SqliteFaultAction>>;
+
+### build/faults.d.ts#SqliteFault
+export interface SqliteFault {
+  readonly kind: SqliteFaultKind;
+  readonly action: SqliteFaultAction;
+  readonly code: number;
+  readonly extendedCode: number;
+  readonly message: string;
+  readonly error: Error;
+}
+
+### build/faults.d.ts#SqliteFaultAction
+export type SqliteFaultAction = "retry" | "quarantine" | "operator" | "bug";
+
+### build/faults.d.ts#SqliteFaultKind
+export type SqliteFaultKind = "sql" | "internal" | "permission" | "aborted" | "busy" | "locked" | "no-memory" | "read-only" | "interrupted" | "io" | "corrupt" | "not-found" | "full" | "cannot-open" | "protocol" | "schema" | "too-big" | "constraint" | "mismatch" | "misuse" | "no-lfs" | "authorization" | "range" | "not-a-database" | "other";
+
+### build/faults.d.ts#sqliteFault
+export declare function sqliteFault(error: unknown): SqliteFault | undefined;
 
 ### build/migrate.d.ts#MigrateOptions
 export interface MigrateOptions {
   readonly name?: string | undefined;
+  readonly part?: string | undefined;
 }
 
 ### build/migrate.d.ts#Migrated
@@ -87,8 +187,14 @@ export interface Migrated {
 ### build/migrate.d.ts#Migration
 export type Migration = string | ((db: DatabaseSync) => void);
 
+### build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
+export declare const SCHEMA_VERSIONS_TABLE = "schema_versions";
+
 ### build/migrate.d.ts#migrate
 export declare function migrate(db: DatabaseSync, migrations: readonly Migration[], options?: MigrateOptions): Migrated;
+
+### build/migrate.d.ts#schemaVersion
+export declare function schemaVersion(db: DatabaseSync, part?: string): number;
 
 ### build/migrate.d.ts#userVersion
 export declare function userVersion(db: DatabaseSync): number;
