@@ -134,8 +134,8 @@ export const EVENT_LOG_SCHEMA_VERSION: number = logSteps("events").length;
 /** The default name of the table of a log. */
 const DEFAULT_TABLE = "events";
 
-/** This function throws when a name cannot be the table of a log. */
-function checkTable(table: string): void {
+/** This function throws when a name cannot be the table of a log. The salvage of a log uses it too. */
+export function checkTable(table: string): void {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(table) || table.toLowerCase().startsWith("sqlite_") || table === SCHEMA_VERSIONS_TABLE) {
     throw new RangeError(`The table of a log must be a name of letters, digits and underscores, and not ${SCHEMA_VERSIONS_TABLE} or sqlite_*, not ${JSON.stringify(table)}.`);
   }
