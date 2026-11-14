@@ -23,6 +23,7 @@ type LogRecord: build/event-log.d.ts#LogRecord
 type MigrateOptions: build/migrate.d.ts#MigrateOptions
 type Migrated: build/migrate.d.ts#Migrated
 type Migration: build/migrate.d.ts#Migration
+type Nested: build/transaction.d.ts#Nested
 type OpenOptions: build/database.d.ts#OpenOptions
 type QuarantineOptions: build/recovery.d.ts#QuarantineOptions
 type Quarantined: build/recovery.d.ts#Quarantined
@@ -136,6 +137,7 @@ export interface EventLogOptions<E> {
   readonly parse: (value: unknown) => E;
   readonly table?: string | undefined;
   readonly equal?: Equal<E> | undefined;
+  readonly nested?: Nested | undefined;
 }
 
 ### build/event-log.d.ts#LogEntry
@@ -292,12 +294,16 @@ export declare function salvageEventLog<E extends LogRecord>(source: string, tar
 ### build/recovery.d.ts#snapshot
 export declare function snapshot(db: DatabaseSync, path: string): Snapshot;
 
+### build/transaction.d.ts#Nested
+export type Nested = "refuse" | "savepoint";
+
 ### build/transaction.d.ts#TransactionDatabase
 export type TransactionDatabase = Pick<DatabaseSync, "exec" | "isTransaction">;
 
 ### build/transaction.d.ts#TransactionOptions
 export interface TransactionOptions {
   readonly onRollbackError?: ((error: unknown) => void) | undefined;
+  readonly nested?: Nested | undefined;
 }
 
 ### build/transaction.d.ts#transaction

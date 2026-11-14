@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "./database.ts";
-import { BrokenLogError, EVENT_LOG_SCHEMA_VERSION, eventLog, openEventLog, type LogRecord } from "./event-log.ts";
+import { BrokenLogError, EVENT_LOG_SCHEMA_VERSION, eventLog, openEventLog, type EventLog, type LogRecord } from "./event-log.ts";
 import { migrate, SCHEMA_VERSIONS_TABLE, schemaVersion, userVersion } from "./migrate.ts";
+import { transaction } from "./transaction.ts";
 
 let folder: string;
 let file: string;
@@ -341,5 +342,61 @@ describe("eventLog", () => {
     db.exec("ROLLBACK");
     expect(log.append(note("a"))).toEqual({ kind: "added", seq: 1 });
     db.close();
+  });
+
+  describe("with nested: savepoint", () => {
+    const open = (): { db: DatabaseSync; log: EventLog<Note> } => {
+      const db = openDatabase(":memory:");
+      db.exec("CREATE TABLE app (id TEXT)");
+      return { db, log: eventLog(db, { parse, nested: "savepoint" }) };
+    };
+    const appRows = (db: DatabaseSync): number => (db.prepare("SELECT count(*) AS n FROM app").get() as { n: number }).n;
+
+    it("writes the events and the tables of the app in one transaction", () => {
+      const { db, log } = open();
+      transaction(db, () => {
+        db.exec("INSERT INTO app VALUES ('x')");
+        expect(log.append(note("a"))).toEqual({ kind: "added", seq: 1 });
+        expect(db.isTransaction).toBe(true);
+      });
+      expect([appRows(db), log.count()]).toEqual([1, 1]);
+
+      expect(() =>
+        transaction(db, () => {
+          db.exec("INSERT INTO app VALUES ('y')");
+          log.append(note("b"));
+          throw new Error("the app fails");
+        }),
+      ).toThrow("the app fails");
+      expect([appRows(db), log.count()]).toEqual([1, 1]);
+      db.close();
+    });
+
+    it("rolls back only a failed write, and the log recovers in the open transaction", () => {
+      const { db, log } = open();
+      const failure = new Error("accept fails");
+      transaction(db, () => {
+        db.exec("INSERT INTO app VALUES ('x')");
+        log.append(note("a"));
+        expect(() =>
+          log.append(note("b"), () => {
+            throw failure;
+          }),
+        ).toThrow(failure);
+        expect(() => log.count()).toThrow(BrokenLogError);
+        log.recover();
+        expect(log.append(note("c"))).toEqual({ kind: "added", seq: 2 });
+      });
+      expect(appRows(db)).toBe(1);
+      expect([...log.read()].map((event) => event.id)).toEqual(["a", "c"]);
+      db.close();
+    });
+
+    it("is a plain transaction when no transaction is in progress", () => {
+      const { db, log } = open();
+      expect(log.appendAll([note("a"), note("b")]).map((result) => result.kind)).toEqual(["added", "added"]);
+      expect(db.isTransaction).toBe(false);
+      db.close();
+    });
   });
 });

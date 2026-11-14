@@ -97,3 +97,133 @@ describe("transaction", () => {
     expect(rollbackErrors).toEqual([new Error("rollback failed")]);
   });
 });
+
+describe("transaction with nested: savepoint", () => {
+  const savepoint = { nested: "savepoint" } as const;
+  const insert = (x: number): void => {
+    db.prepare("INSERT INTO t VALUES (?)").run(x);
+  };
+  const values = (): number[] => (db.prepare("SELECT x FROM t ORDER BY x").all() as { x: number }[]).map((row) => row.x);
+
+  it("is a plain transaction when no transaction is in progress", () => {
+    expect(transaction(db, () => (insert(1), "done"), savepoint)).toBe("done");
+    expect(db.isTransaction).toBe(false);
+    expect(values()).toEqual([1]);
+  });
+
+  it("joins the transaction in progress, and commits with it", () => {
+    transaction(db, () => {
+      insert(1);
+      expect(transaction(db, () => (insert(2), 2), savepoint)).toBe(2);
+      expect(db.isTransaction).toBe(true);
+      insert(3);
+    });
+    expect(values()).toEqual([1, 2, 3]);
+  });
+
+  it("rolls back only the writes of a failed work, and the transaction in progress continues", () => {
+    const failure = new Error("a bug");
+    transaction(db, () => {
+      insert(1);
+      expect(() =>
+        transaction(
+          db,
+          () => {
+            insert(2);
+            throw failure;
+          },
+          savepoint,
+        ),
+      ).toThrow(failure);
+      expect(db.isTransaction).toBe(true);
+      insert(3);
+    });
+    expect(values()).toEqual([1, 3]);
+  });
+
+  it("loses its writes when the transaction in progress rolls back", () => {
+    expect(() =>
+      transaction(db, () => {
+        transaction(db, () => insert(1), savepoint);
+        throw new Error("the outer work fails");
+      }),
+    ).toThrow("the outer work fails");
+    expect(values()).toEqual([]);
+  });
+
+  it("nests to more levels, and each failed level rolls back alone", () => {
+    transaction(db, () => {
+      transaction(
+        db,
+        () => {
+          insert(1);
+          expect(() =>
+            transaction(
+              db,
+              () => {
+                insert(2);
+                transaction(db, () => insert(3), savepoint);
+                throw new Error("level 3");
+              },
+              savepoint,
+            ),
+          ).toThrow("level 3");
+          insert(4);
+        },
+        savepoint,
+      );
+    });
+    expect(values()).toEqual([1, 4]);
+  });
+
+  it("joins a transaction that the caller began with BEGIN", () => {
+    db.exec("BEGIN");
+    transaction(db, () => insert(1), savepoint);
+    expect(db.isTransaction).toBe(true);
+    db.exec("COMMIT");
+    expect(values()).toEqual([1]);
+  });
+
+  it("refuses a work that gives a promise, and rolls back the savepoint", () => {
+    transaction(db, () => {
+      insert(1);
+      expect(() => transaction(db, () => (insert(2), Promise.resolve()), savepoint)).toThrow(/synchronous/);
+    });
+    expect(values()).toEqual([1]);
+  });
+
+  it("throws when the work ends the transaction in progress", () => {
+    db.exec("BEGIN");
+    expect(() => transaction(db, () => db.exec("COMMIT"), savepoint)).toThrow(/ended the transaction/);
+    expect(db.isTransaction).toBe(false);
+  });
+
+  it("refuses an unknown value of nested", () => {
+    expect(() => transaction(db, () => 1, { nested: "join" as never })).toThrow(RangeError);
+  });
+
+  it("gives a failed rollback of a savepoint to onRollbackError", () => {
+    const statements: string[] = [];
+    const fake: TransactionDatabase = {
+      exec(sql: string) {
+        statements.push(sql);
+        if (sql.startsWith("ROLLBACK TO")) throw new Error("rollback failed");
+      },
+      isTransaction: true,
+    };
+    const rollbackErrors: unknown[] = [];
+    expect(() =>
+      transaction(
+        fake,
+        () => {
+          throw new Error("a bug");
+        },
+        { nested: "savepoint", onRollbackError: (error) => rollbackErrors.push(error) },
+      ),
+    ).toThrow("a bug");
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toMatch(/^SAVEPOINT "sqlite_savepoint_\d+"$/);
+    expect(statements[1]).toBe(statements[0]?.replace("SAVEPOINT", "ROLLBACK TO"));
+    expect(rollbackErrors).toEqual([new Error("rollback failed")]);
+  });
+});
