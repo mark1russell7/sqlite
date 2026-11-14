@@ -178,8 +178,9 @@ describe("addMissingColumns", () => {
 
   it("gives the error of SQLite for a definition that ALTER TABLE refuses", () => {
     const db = connect();
-    db.exec("CREATE TABLE t (id TEXT)");
+    db.exec("CREATE TABLE t (id TEXT); INSERT INTO t VALUES ('a')");
     expect(() => addMissingColumns(db, "t", { must: "TEXT NOT NULL" })).toThrow(/NOT NULL/);
+    expect(tableColumns(db, "t")).toEqual(["id"]);
   });
 });
 

@@ -80,7 +80,7 @@ migrate(db, steps); // a new file and an old file get the same columns
 
 - `addMissingColumns` gives the names of the columns that it added. The comparison of names ignores case.
 - `tableColumns` gives the columns of a table in their order, and an empty list when the table is not there.
-- A column definition is SQL of the app. `ALTER TABLE` sets its rules: for example, a `NOT NULL` column needs a default.
+- A column definition is SQL of the app. `ALTER TABLE` sets its rules. A `NOT NULL` column needs a default when the table has rows.
 - After the first step, each change of the schema is a new step.
 
 ## Transactions

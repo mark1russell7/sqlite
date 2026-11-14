@@ -151,7 +151,8 @@ export function tableColumns(db: DatabaseSync, table: string): string[] {
  * `CREATE TABLE IF NOT EXISTS` and then this function. Such a step adopts a file of each older version at `user_version` 0.
  *
  * The comparison of names ignores case, as SQLite does. `ALTER TABLE ADD COLUMN` sets the rules of a definition: for
- * example, a `NOT NULL` column needs a default. The function examines each name before it changes the table.
+ * example, a `NOT NULL` column needs a default when the table has rows. The function examines each name before it changes
+ * the table.
  *
  * @param db - The connection.
  * @param table - The name of the table. The table must exist.
