@@ -61,6 +61,28 @@ schemaVersion(db, "app"); // the count of steps of the part app
 - A migration without `part` uses the `user_version`, as before.
 - The option `name` sets the name of the database in the error of a newer file.
 
+### Adopt the file of an older app
+
+An older version of an app can have made its tables without migrations. Its file has tables and the `user_version` 0. The first step of the schema then adopts each such file. It makes the tables that are not there, and adds the columns that an older version did not have:
+
+```ts
+import { addMissingColumns, migrate, type Migration } from "@mark1russell7/sqlite";
+
+const steps: Migration[] = [
+  (db) => {
+    db.exec("CREATE TABLE IF NOT EXISTS leases (id TEXT PRIMARY KEY, state TEXT NOT NULL, peak_mb REAL, usage TEXT)");
+    addMissingColumns(db, "leases", { peak_mb: "REAL", usage: "TEXT" });
+  },
+  "ALTER TABLE leases ADD COLUMN exit_code INTEGER",
+];
+migrate(db, steps); // a new file and an old file get the same columns
+```
+
+- `addMissingColumns` gives the names of the columns that it added. The comparison of names ignores case.
+- `tableColumns` gives the columns of a table in their order, and an empty list when the table is not there.
+- A column definition is SQL of the app. `ALTER TABLE` sets its rules. A `NOT NULL` column needs a default when the table has rows.
+- After the first step, each change of the schema is a new step.
+
 ## Transactions
 
 `transaction` does the work in one `BEGIN IMMEDIATE` transaction and gives the result of the work. The write lock comes at the start, so a different writer cannot cause a failure in the middle of the work.

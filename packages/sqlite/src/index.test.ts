@@ -9,6 +9,7 @@ describe("the entry", () => {
       "IntegrityError",
       "SCHEMA_VERSIONS_TABLE",
       "SQLITE_FAULT_ACTIONS",
+      "addMissingColumns",
       "checkIntegrity",
       "eventLog",
       "migrate",
@@ -20,6 +21,7 @@ describe("the entry", () => {
       "schemaVersion",
       "snapshot",
       "sqliteFault",
+      "tableColumns",
       "transaction",
       "userVersion",
     ]);

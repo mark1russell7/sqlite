@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "./database.ts";
-import { migrate, SCHEMA_VERSIONS_TABLE, schemaVersion, userVersion, type Migration } from "./migrate.ts";
+import { addMissingColumns, migrate, SCHEMA_VERSIONS_TABLE, schemaVersion, tableColumns, userVersion, type Migration } from "./migrate.ts";
 
 let folder: string;
 let file: string;
@@ -136,5 +136,84 @@ describe("migrate with parts", () => {
     const db = connect();
     expect(() => migrate(db, steps, { part: "" })).toThrow(RangeError);
     expect(() => schemaVersion(db, "")).toThrow(RangeError);
+  });
+});
+
+describe("tableColumns", () => {
+  it("gives the columns of a table in their order, and an empty list for no table", () => {
+    const db = connect();
+    db.exec("CREATE TABLE t (b TEXT, a INTEGER)");
+    expect(tableColumns(db, "t")).toEqual(["b", "a"]);
+    expect(tableColumns(db, "missing")).toEqual([]);
+  });
+
+  it("refuses a name that is not a plain SQL name", () => {
+    const db = connect();
+    for (const name of ["a b", "t); DROP TABLE t; --", "sqlite_master", ""]) expect(() => tableColumns(db, name)).toThrow(RangeError);
+  });
+});
+
+describe("addMissingColumns", () => {
+  it("adds only the missing columns, and gives their names", () => {
+    const db = connect();
+    db.exec("CREATE TABLE t (id TEXT PRIMARY KEY, Peak_MB REAL)");
+    db.exec("INSERT INTO t VALUES ('a', 1.5)");
+    expect(addMissingColumns(db, "t", { peak_mb: "REAL", usage: "TEXT", runs: "INTEGER NOT NULL DEFAULT 0" })).toEqual(["usage", "runs"]);
+    expect(tableColumns(db, "t")).toEqual(["id", "Peak_MB", "usage", "runs"]);
+    expect(db.prepare("SELECT * FROM t").get()).toEqual({ id: "a", Peak_MB: 1.5, usage: null, runs: 0 });
+    expect(addMissingColumns(db, "t", { usage: "TEXT", runs: "INTEGER NOT NULL DEFAULT 0" })).toEqual([]);
+  });
+
+  it("throws for a table that does not exist", () => {
+    const db = connect();
+    expect(() => addMissingColumns(db, "missing", { a: "TEXT" })).toThrow(/does not exist/);
+  });
+
+  it("examines each column name before it changes the table", () => {
+    const db = connect();
+    db.exec("CREATE TABLE t (id TEXT)");
+    expect(() => addMissingColumns(db, "t", { good: "TEXT", "bad name": "TEXT" })).toThrow(RangeError);
+    expect(tableColumns(db, "t")).toEqual(["id"]);
+  });
+
+  it("gives the error of SQLite for a definition that ALTER TABLE refuses", () => {
+    const db = connect();
+    db.exec("CREATE TABLE t (id TEXT); INSERT INTO t VALUES ('a')");
+    expect(() => addMissingColumns(db, "t", { must: "TEXT NOT NULL" })).toThrow(/NOT NULL/);
+    expect(tableColumns(db, "t")).toEqual(["id"]);
+  });
+});
+
+describe("the adoption of a file of an older app", () => {
+  /** The first step of the schema: it makes a new file, and it adopts a file of each older version. */
+  const baseline: Migration = (db) => {
+    db.exec("CREATE TABLE IF NOT EXISTS leases (id TEXT PRIMARY KEY, state TEXT NOT NULL, peak_mb REAL, usage TEXT)");
+    addMissingColumns(db, "leases", { peak_mb: "REAL", usage: "TEXT" });
+    db.exec("CREATE INDEX IF NOT EXISTS leases_state ON leases (state)");
+  };
+  const steps: readonly Migration[] = [baseline, "ALTER TABLE leases ADD COLUMN exit_code INTEGER"];
+
+  it("keeps the rows of a file at user_version 0, and gives it the columns of each later version", () => {
+    const old = connect();
+    old.exec("CREATE TABLE leases (id TEXT PRIMARY KEY, state TEXT NOT NULL)");
+    old.exec("INSERT INTO leases VALUES ('l1', 'ended')");
+    old.close();
+
+    const db = connect();
+    expect(migrate(db, steps)).toEqual({ from: 0, to: 2 });
+    expect(tableColumns(db, "leases")).toEqual(["id", "state", "peak_mb", "usage", "exit_code"]);
+    expect(db.prepare("SELECT id, state FROM leases").all()).toEqual([{ id: "l1", state: "ended" }]);
+  });
+
+  it("adopts a file of a middle version, and gives a new file the same columns", () => {
+    const old = connect();
+    old.exec("CREATE TABLE leases (id TEXT PRIMARY KEY, state TEXT NOT NULL, peak_mb REAL)");
+    expect(migrate(old, steps)).toEqual({ from: 0, to: 2 });
+    expect(tableColumns(old, "leases")).toEqual(["id", "state", "peak_mb", "usage", "exit_code"]);
+
+    const fresh = openDatabase(":memory:");
+    open.push(fresh);
+    migrate(fresh, steps);
+    expect(tableColumns(fresh, "leases")).toEqual(tableColumns(old, "leases"));
   });
 });
