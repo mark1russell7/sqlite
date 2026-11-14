@@ -65,7 +65,7 @@ export function schemaVersion(db: DatabaseSync, part?: string): number {
 }
 
 /** This function writes the schema version of a database, or of a part of it. It operates in a transaction. */
-function setSchemaVersion(db: DatabaseSync, part: string | undefined, version: number): void {
+export function setSchemaVersion(db: DatabaseSync, part: string | undefined, version: number): void {
   if (part === undefined) {
     db.exec(`PRAGMA user_version = ${String(version)}`);
     return;

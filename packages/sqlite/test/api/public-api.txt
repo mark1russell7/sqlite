@@ -26,6 +26,8 @@ type Migrated: build/migrate.d.ts#Migrated
 type Migration: build/migrate.d.ts#Migration
 type Nested: build/transaction.d.ts#Nested
 type OpenOptions: build/database.d.ts#OpenOptions
+type Projected: build/projection.d.ts#Projected
+type ProjectionOptions: build/projection.d.ts#ProjectionOptions
 type QuarantineOptions: build/recovery.d.ts#QuarantineOptions
 type Quarantined: build/recovery.d.ts#Quarantined
 type ReadOptions: build/event-log.d.ts#ReadOptions
@@ -43,6 +45,7 @@ type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
 addMissingColumns: build/migrate.d.ts#addMissingColumns
 checkIntegrity: build/recovery.d.ts#checkIntegrity
+ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
 openDatabase: build/database.d.ts#openDatabase
@@ -226,6 +229,23 @@ export declare function tableColumns(db: DatabaseSync, table: string): string[];
 
 ### build/migrate.d.ts#userVersion
 export declare function userVersion(db: DatabaseSync): number;
+
+### build/projection.d.ts#Projected
+export interface Projected {
+  readonly rebuilt: boolean;
+  readonly from: number;
+}
+
+### build/projection.d.ts#ProjectionOptions
+export interface ProjectionOptions {
+  readonly version: number;
+  readonly part?: string | undefined;
+  readonly tables?: readonly string[] | undefined;
+  readonly check?: ((db: DatabaseSync) => boolean) | undefined;
+}
+
+### build/projection.d.ts#ensureProjection
+export declare function ensureProjection(db: DatabaseSync, schema: Migration, options: ProjectionOptions): Projected;
 
 ### build/recovery.d.ts#Integrity
 export interface Integrity {
