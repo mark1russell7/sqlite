@@ -8,7 +8,7 @@ The entry `@mark1russell7/sqlite/portable` operates on other drivers of SQLite t
 npm install @mark1russell7/sqlite
 ```
 
-The package needs Node.js 22.16 or later.
+The package needs Node.js 22.13 or later: the first Node.js with `node:sqlite` and no flag. CI runs the tests on Node.js 22.13.
 
 ## The connection
 

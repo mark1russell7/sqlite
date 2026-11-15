@@ -4,6 +4,7 @@
  * @packageDocumentation
  */
 import type { SqlConnection } from "./connection.ts";
+import { isInTransaction } from "./probe.ts";
 import { transaction } from "./transaction.ts";
 
 /** The options of `clearDatabase`. */
@@ -31,7 +32,7 @@ function quoted(name: string): string {
  * @returns The names of the dropped views and tables, in the order of the drop.
  */
 export function clearDatabase(db: SqlConnection, options: ClearOptions = {}): string[] {
-  if (db.isTransaction) throw new Error("The clear of a database cannot run in a transaction. Run it after the transaction.");
+  if (isInTransaction(db)) throw new Error("The clear of a database cannot run in a transaction. Run it after the transaction.");
   const row = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys?: unknown } | undefined;
   const foreignKeys = Number(row?.foreign_keys ?? 0) !== 0;
   const objects = db

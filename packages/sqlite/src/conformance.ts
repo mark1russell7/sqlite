@@ -17,6 +17,7 @@ import {
   type LogRecord,
   type SqlConnection,
 } from "./portable.ts";
+import { isInTransaction } from "./probe.ts";
 
 /** A connection of an adapter that the suite can close. */
 export interface ClosableConnection extends SqlConnection {
@@ -68,7 +69,7 @@ export function describePortable(name: string, open: () => ClosableConnection): 
         expect(() => migrate(db, ["CREATE TABLE a (x)", "CREATE TABLE b (x); SELECT * FROM missing"])).toThrow(/missing/);
         expect(userVersion(db)).toBe(1);
         expect(tableColumns(db, "b")).toEqual([]);
-        expect(db.isTransaction).toBe(false);
+        expect(isInTransaction(db)).toBe(false);
       });
     });
 
@@ -102,7 +103,7 @@ export function describePortable(name: string, open: () => ClosableConnection): 
           ).toThrow("stop");
         });
         expect(db.prepare("SELECT v FROM t").all()).toEqual([{ v: "outer" }]);
-        expect(db.isTransaction).toBe(false);
+        expect(isInTransaction(db)).toBe(false);
       });
     });
 
@@ -122,7 +123,7 @@ export function describePortable(name: string, open: () => ClosableConnection): 
           ),
         ).toEqual({ n: 1 });
         expect(count()).toEqual({ n: 0 });
-        expect(db.isTransaction).toBe(false);
+        expect(isInTransaction(db)).toBe(false);
         transaction(db, () => {
           insert.run("kept");
           expect(transaction(db, () => insert.run("trial").changes, { nested: "savepoint", commit: false })).toBe(1);
@@ -137,7 +138,7 @@ export function describePortable(name: string, open: () => ClosableConnection): 
         db.exec("CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('a')");
         expect(readTransaction(db, () => db.prepare("SELECT v FROM t").all())).toEqual([{ v: "a" }]);
         expect(() => readTransaction(db, () => db.prepare("INSERT INTO t VALUES (?)").run("b"))).toThrow(/readonly/i);
-        expect(db.isTransaction).toBe(false);
+        expect(isInTransaction(db)).toBe(false);
         expect(db.prepare("PRAGMA query_only").get()).toEqual({ query_only: 0 });
         db.prepare("INSERT INTO t VALUES (?)").run("c");
         expect(db.prepare("SELECT count(*) AS n FROM t").get()).toEqual({ n: 2 });

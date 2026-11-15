@@ -5,6 +5,15 @@ import { migrate, schemaVersion, userVersion } from "./migrate.ts";
 import { ensureProjection } from "./projection.ts";
 import { transaction } from "./transaction.ts";
 
+/** This function closes the connection. It ignores the error of a connection that the test closed. */
+function closeQuietly(db: { close(): void }): void {
+  try {
+    db.close();
+  } catch {
+    // The test closed the connection
+  }
+}
+
 let db: DatabaseSync;
 
 beforeEach(() => {
@@ -12,7 +21,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (db.isOpen) db.close();
+  // Node.js before 22.15 has no isOpen. A second close() throws, and the hook ignores that error.
+  closeQuietly(db);
 });
 
 const objects = (): string[] =>
@@ -22,8 +32,21 @@ const objects = (): string[] =>
 const rows = (table: string): number => (db.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
 const deferred = (): number => (db.prepare("PRAGMA defer_foreign_keys").get() as { defer_foreign_keys: number }).defer_foreign_keys;
 
-const SCHEMA_1 = "CREATE TABLE pages (url TEXT PRIMARY KEY, text TEXT NOT NULL); CREATE VIRTUAL TABLE pages_fts USING fts5 (text)";
-const SCHEMA_2 = "CREATE TABLE pages (url TEXT PRIMARY KEY, text TEXT NOT NULL, at TEXT); CREATE VIRTUAL TABLE pages_fts USING fts5 (text)";
+/** The table pages_fts: a virtual table of FTS5. The SQLite of Node.js 22.13 has no FTS5, so there the table is a plain table. */
+const SEARCH = ((): string => {
+  const probe = openDatabase(":memory:");
+  try {
+    probe.exec("CREATE VIRTUAL TABLE probe USING fts5 (text)");
+    return "CREATE VIRTUAL TABLE pages_fts USING fts5 (text)";
+  } catch {
+    return "CREATE TABLE pages_fts (text)";
+  } finally {
+    probe.close();
+  }
+})();
+
+const SCHEMA_1 = `CREATE TABLE pages (url TEXT PRIMARY KEY, text TEXT NOT NULL); ${SEARCH}`;
+const SCHEMA_2 = `CREATE TABLE pages (url TEXT PRIMARY KEY, text TEXT NOT NULL, at TEXT); ${SEARCH}`;
 
 describe("ensureProjection", () => {
   it("makes the schema in a new file, and gives rebuilt", () => {

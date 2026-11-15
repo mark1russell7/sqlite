@@ -6,6 +6,7 @@
  * @packageDocumentation
  */
 import type { SqlConnection } from "./connection.ts";
+import { isInTransaction } from "./probe.ts";
 
 /** The part of a connection that a transaction uses. A test can give a fake. */
 export type TransactionDatabase = Pick<SqlConnection, "exec" | "isTransaction">;
@@ -110,7 +111,7 @@ function run<T>(db: TransactionDatabase, begin: string, work: () => T, options: 
   if (!NESTED.includes(nested)) throw new RangeError(`The value of nested must be one of ${NESTED.join(", ")}, not ${String(nested)}.`);
   const commit = options.commit ?? true;
   if (typeof commit !== "boolean") throw new TypeError(`The value of commit must be true or false, not ${String(commit)}.`);
-  if (nested === "savepoint" && db.isTransaction) return savepoint(db, work, commit, options);
+  if (nested === "savepoint" && isInTransaction(db)) return savepoint(db, work, commit, options);
   db.exec(begin);
   try {
     const result = work();
@@ -121,7 +122,7 @@ function run<T>(db: TransactionDatabase, begin: string, work: () => T, options: 
     return result;
   } catch (error) {
     try {
-      if (db.isTransaction) db.exec("ROLLBACK");
+      if (isInTransaction(db)) db.exec("ROLLBACK");
     } catch (rollback) {
       options.onRollbackError?.(rollback);
     }
@@ -138,14 +139,14 @@ function savepoint<T>(db: TransactionDatabase, work: () => T, commit: boolean, o
     if (isThenable(result)) {
       throw new TypeError("The work of a transaction must be synchronous. The savepoint rolled back.");
     }
-    if (!db.isTransaction) throw new Error("The work ended the transaction in progress, so its savepoint is gone.");
+    if (!isInTransaction(db)) throw new Error("The work ended the transaction in progress, so its savepoint is gone.");
     if (!commit) db.exec(`ROLLBACK TO ${name}`);
     db.exec(`RELEASE ${name}`);
     return result;
   } catch (error) {
     try {
       // ROLLBACK TO keeps the savepoint, so a RELEASE must follow. Without the transaction, nothing is left to undo.
-      if (db.isTransaction) {
+      if (isInTransaction(db)) {
         db.exec(`ROLLBACK TO ${name}`);
         db.exec(`RELEASE ${name}`);
       }

@@ -1,5 +1,16 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.4
+
+This version runs on Node.js 22.13 or later. The change is backward compatible.
+
+- The `engines` field asks for Node.js 22.13, not 22.16. CI runs the tests on Node.js 22.13 in a second job.
+- `transaction`, `readTransaction`, `checkpoint`, `clearDatabase` and `eventLog` read the transaction state through one function. A connection with no `isTransaction` gets the probe. Before, a connection from `new DatabaseSync()` on Node.js 22.13 to 22.15 had no state, so a failed work stayed in its transaction.
+- `eventLog` and `salvageEventLog` keep a reference to the statement of a read. Before, Node.js 22.13 finalized that statement during some reads ("statement has been finalized").
+- The tests do not use `isOpen` or FTS5, because Node.js 22.13 has neither.
+
+Runtime dependencies: none.
+
 ## 0.3.3
 
 This version adds the parts that the SQLite stores of other packages keep as local copies. The change is backward compatible.
