@@ -7,6 +7,7 @@ This version adds projections. The change is backward compatible.
 - `ensureProjection` makes the schema of a projection, for example an index or a cache. A file of a different version opens empty, and the app fills it again.
 - Without a part, the projection owns the whole file. With a part, a rebuild removes only the tables of the part.
 - The option `check` tells if a file of the correct version has the projection.
+- With `foreign_keys` on, the checks of the foreign keys wait for the end of the transaction during the drops. Thus the order of the tables is free.
 - The types `Projected` and `ProjectionOptions` are new.
 
 Runtime dependencies: none.
