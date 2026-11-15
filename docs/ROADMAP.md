@@ -14,7 +14,7 @@ This file is the plan of sqlite. The Status page of the site reads it, and the t
 | SQ-8 | The file of an older app | done | Version 0.2.3: adopt a file that has tables but no schema version. |
 | SQ-9 | The first move | open | An app with its own event log moves to this package. |
 | SQ-10 | The second move | in progress | An app with four stores moves to this package. On its branch, each of the four stores opens, migrates and locks through this package. |
-| SQ-11 | The third move | open | An app with its own store and migrations moves to this package. |
+| SQ-11 | The third move | done | An app with its own store and migrations moves to this package. Its store opens, migrates and writes through this package, with one baseline step by `user_version`. |
 | SQ-12 | The map of homes | done | The map of homes tells that the package is on npm. |
 | SQ-13 | The site | done | The home page has a live demo of the event log: three copies in SQLite in WebAssembly exchange notes, and the page shows the conflicts and checks the join laws after each change. A probe uses the demo in CI at each width. |
 | SQ-14 | Standard Schema validators | done | Version 0.3.1: the `parse` of a log is a function or a validator of the Standard Schema, for example a schema of zod 4. A refused value gives a `SchemaError`. |
