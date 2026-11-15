@@ -139,6 +139,39 @@ describe("migrate with parts", () => {
   });
 });
 
+describe("migrate with newer: keep", () => {
+  it("keeps a file or a part of a newer version, and does no step", () => {
+    const db = connect();
+    migrate(db, steps);
+    migrate(db, steps, { part: "app" });
+    let ran = 0;
+    const counted: Migration[] = [
+      () => {
+        ran += 1;
+      },
+    ];
+    expect(migrate(db, counted, { newer: "keep" })).toEqual({ from: 2, to: 2 });
+    expect(migrate(db, counted, { part: "app", newer: "keep" })).toEqual({ from: 2, to: 2 });
+    expect(ran).toBe(0);
+    expect(userVersion(db)).toBe(2);
+    expect(schemaVersion(db, "app")).toBe(2);
+  });
+
+  it("does the missing steps of an older file", () => {
+    const db = connect();
+    migrate(db, steps.slice(0, 1));
+    expect(migrate(db, steps, { newer: "keep" })).toEqual({ from: 1, to: 2 });
+    expect(tables(db)).toEqual(["a", "b"]);
+  });
+
+  it("throws for a newer file with the default, and refuses a value that is not known", () => {
+    const db = connect();
+    migrate(db, steps);
+    expect(() => migrate(db, steps.slice(0, 1), { newer: "throw" })).toThrow(/has the schema version 2/);
+    expect(() => migrate(db, steps, { newer: "skip" as never })).toThrow(RangeError);
+  });
+});
+
 describe("tableColumns", () => {
   it("gives the columns of a table in their order, and an empty list for no table", () => {
     const db = connect();
