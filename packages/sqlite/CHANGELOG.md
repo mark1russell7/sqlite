@@ -2,11 +2,12 @@
 
 ## 0.3.4
 
-This version runs on Node.js 22.13 or later. The change is backward compatible.
+This version runs on Node.js 22.13 or later, and the adapter of sql.js operates after a save. The change is backward compatible.
 
 - The `engines` field asks for Node.js 22.13, not 22.16. CI runs the tests on Node.js 22.13 in a second job.
 - `transaction`, `readTransaction`, `checkpoint`, `clearDatabase` and `eventLog` read the transaction state through one function. A connection with no `isTransaction` gets the probe. Before, a connection from `new DatabaseSync()` on Node.js 22.13 to 22.15 had no state, so a failed work stayed in its transaction.
 - `eventLog` and `salvageEventLog` keep a reference to the statement of a read. Before, Node.js 22.13 finalized that statement during some reads ("statement has been finalized").
+- `sqlJsConnection` compiles a statement for each call and frees it after the call. Before, it kept one statement for each SQL text, and an `export()` of sql.js frees each statement. So each call after the first save threw "Statement closed". The type `SqlJsStatement` has no `reset`, because the adapter does not use it. A `Statement` of sql.js still matches the type.
 - The tests do not use `isOpen` or FTS5, because Node.js 22.13 has neither.
 
 Runtime dependencies: none.
