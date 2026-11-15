@@ -19,6 +19,7 @@ describe("the entry", () => {
       "openEventLog",
       "openOrQuarantine",
       "quarantine",
+      "readTransaction",
       "salvageEventLog",
       "schemaVersion",
       "snapshot",

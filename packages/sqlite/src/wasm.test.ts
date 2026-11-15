@@ -6,6 +6,7 @@ import {
   eventLog,
   ensureProjection,
   migrate,
+  readTransaction,
   schemaVersion,
   tableColumns,
   addMissingColumns,
@@ -197,6 +198,18 @@ describe("the portable entry on SQLite in WebAssembly", () => {
       });
       expect(db.prepare("SELECT v FROM t").all()).toEqual([{ v: "outer" }]);
       expect(db.isTransaction).toBe(false);
+    });
+  });
+
+  it("reads in a read transaction, refuses a write there, and restores query_only", () => {
+    withDb((db) => {
+      db.exec("CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('a')");
+      expect(readTransaction(db, () => db.prepare("SELECT v FROM t").all())).toEqual([{ v: "a" }]);
+      expect(() => readTransaction(db, () => db.prepare("INSERT INTO t VALUES (?)").run("b"))).toThrow(/readonly/i);
+      expect(db.isTransaction).toBe(false);
+      expect(db.prepare("PRAGMA query_only").get()).toEqual({ query_only: 0 });
+      db.prepare("INSERT INTO t VALUES (?)").run("c");
+      expect(db.prepare("SELECT count(*) AS n FROM t").get()).toEqual({ n: 2 });
     });
   });
 

@@ -138,6 +138,26 @@ transaction(db, () => {
 });
 ```
 
+### Read transactions
+
+`readTransaction` does the work in one read transaction, and gives the result of the work. Each read of the work sees one snapshot of the file:
+
+```ts
+import { readTransaction } from "@mark1russell7/sqlite";
+
+const matrix = readTransaction(db, () => {
+  const ids = db.prepare("SELECT id FROM vectors").all();
+  const rows = db.prepare("SELECT id, value FROM vectors").all();
+  return { ids, rows };
+});
+```
+
+- The snapshot starts at the call. A write of a different connection after the call is not in the snapshot.
+- The transaction does not take the write lock. In WAL mode, a writer on a different connection does not wait for it.
+- The work cannot write. `PRAGMA query_only` is on during the work, and the function sets the earlier value again at the end.
+- The rules of `transaction` apply: the rollback after an error, the synchronous work, `nested` and `onRollbackError`.
+- Keep the work short. A checkpoint cannot pass an open snapshot, so the WAL file grows.
+
 ## The event log
 
 The event log is a typed append-only list of events, and a grow-only set: an event that the log has already changes nothing. Thus two copies that exchange their events get the same set, in each order of arrival.
@@ -292,7 +312,7 @@ if (quarantined?.database !== undefined) {
 
 ## The portable entry
 
-The entry `@mark1russell7/sqlite/portable` has the migrations, the projections, the write transaction and the event log. It imports no module of Node.js. Thus it operates in a browser too.
+The entry `@mark1russell7/sqlite/portable` has the migrations, the projections, the transactions and the event log. It imports no module of Node.js. Thus it operates in a browser too.
 
 These functions take a `SqlConnection`: the part of a connection that the package uses. It has `exec`, `prepare` and `isTransaction`. Its statements have `get`, `all`, `run` and `iterate`. `DatabaseSync` of `node:sqlite` has these members. For a different driver, write a small adapter.
 

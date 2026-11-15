@@ -20,7 +20,7 @@ export {
   type Newer,
 } from "./migrate.ts";
 export { ensureProjection, type Projected, type ProjectionOptions } from "./projection.ts";
-export { transaction, type Nested, type TransactionDatabase, type TransactionOptions } from "./transaction.ts";
+export { readTransaction, transaction, type Nested, type ReadTransactionDatabase, type TransactionDatabase, type TransactionOptions } from "./transaction.ts";
 export {
   BrokenLogError,
   EVENT_LOG_SCHEMA_VERSION,
