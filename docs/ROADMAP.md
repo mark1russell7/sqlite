@@ -22,4 +22,4 @@ This file is the plan of sqlite. The Status page of the site reads it, and the t
 | SQ-16 | Newer files kept | done | Version 0.2.5: with `newer: "keep"`, an older app does no step on a newer file and keeps its version. SQ-10 needs it. |
 | SQ-17 | The portable entry | done | Version 0.2.6: the entry `@mark1russell7/sqlite/portable` operates on each connection with the type `SqlConnection`, also in a browser. SQ-13 needs it. |
 | SQ-18 | The adapter of SQLite in WebAssembly | done | Version 0.3.0: `wasmConnection` gives a `SqlConnection` over `@sqlite.org/sqlite-wasm`, with no dependency. The types of the entry `/portable` do not name `node:sqlite`. SQ-13 uses it. |
-| SQ-19 | Read transactions | in progress | Version 0.3.2: `readTransaction` reads one snapshot and does not take the write lock. The second move needs it for its vectors. |
+| SQ-19 | Read transactions | done | Version 0.3.2: `readTransaction` reads one snapshot and does not take the write lock. The second move uses it for its vectors. |
