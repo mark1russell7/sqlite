@@ -50,25 +50,18 @@ function dropAll(db: DatabaseSync): void {
   for (const name of objects(db, "'table', 'shadow'")) db.exec(`DROP TABLE IF EXISTS ${quoted(name)}`);
 }
 
-/** This function reads a pragma that has the value 0 or 1. */
-function flag(db: DatabaseSync, pragma: "foreign_keys" | "defer_foreign_keys"): boolean {
-  const row = db.prepare(`PRAGMA ${pragma}`).get() as Record<string, number>;
-  return row[pragma] === 1;
-}
-
 /**
  * This function removes the tables of the projection. When the connection enforces foreign keys, their checks wait for
- * the end of the transaction. Thus the order of the drops is free. After the drops, the old setting comes back.
+ * the end of the transaction. Thus the order of the drops is free.
+ *
+ * The setting stays on until the `COMMIT` or the `ROLLBACK`, and SQLite then sets it off. Do not set it off earlier.
+ * A change to off also clears the count of the deferred violations, and then the commit does not see them.
  */
 function drop(db: DatabaseSync, part: string | undefined, tables: readonly string[]): void {
-  const defer = flag(db, "foreign_keys") && !flag(db, "defer_foreign_keys");
-  if (defer) db.exec("PRAGMA defer_foreign_keys = ON");
-  try {
-    if (part === undefined) dropAll(db);
-    else for (const table of tables) db.exec(`DROP TABLE IF EXISTS ${quoted(table)}`);
-  } finally {
-    if (defer) db.exec("PRAGMA defer_foreign_keys = OFF");
-  }
+  const enforced = (db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys === 1;
+  if (enforced) db.exec("PRAGMA defer_foreign_keys = ON");
+  if (part === undefined) dropAll(db);
+  else for (const table of tables) db.exec(`DROP TABLE IF EXISTS ${quoted(table)}`);
 }
 
 /**
@@ -84,7 +77,8 @@ function drop(db: DatabaseSync, part: string | undefined, tables: readonly strin
  * `tables`. The work is one transaction. In a transaction in progress, the work is a savepoint of that transaction.
  *
  * When the connection enforces foreign keys, their checks wait for the end of the transaction. Thus the order of `tables`
- * is free. A row out of the projection that refers to a row of the projection stops the commit.
+ * is free. A row out of the projection that refers to a row of the projection stops the commit. In a transaction in
+ * progress, the checks of the remaining work of that transaction wait for its commit too.
  *
  * @param db - The connection.
  * @param schema - The schema of the projection: SQL statements, or a function that makes the tables.

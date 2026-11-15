@@ -100,6 +100,7 @@ if (rebuilt) reindex(db);
 - The option `check` tells if a file of the correct version has the projection. When it gives false, the projection opens empty.
 - The work is one transaction. In a transaction in progress, the work is a savepoint of that transaction.
 - With `foreign_keys` on, the checks of the foreign keys wait for the end of the transaction. Thus the order of `tables` is free.
+- In a transaction in progress, the checks of the remaining work of that transaction wait for its commit too.
 - A row out of the projection that refers to a row of the projection stops the commit, because a rebuild removes that row.
 
 ## Transactions

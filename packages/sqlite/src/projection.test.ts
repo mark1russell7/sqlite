@@ -97,7 +97,7 @@ describe("ensureProjection", () => {
     expect(rows("pages")).toBe(1);
   });
 
-  it("rebuilds tables with foreign keys in any order, and sets the deferred checks back", () => {
+  it("rebuilds tables with foreign keys in any order, and the commit sets the deferred checks off", () => {
     db.exec("PRAGMA foreign_keys = ON");
     const schema = "CREATE TABLE docs (id TEXT PRIMARY KEY); CREATE TABLE chunks (id TEXT PRIMARY KEY, doc TEXT NOT NULL REFERENCES docs (id))";
     const fill = (): void => db.exec("INSERT INTO docs VALUES ('d'); INSERT INTO chunks VALUES ('c', 'd')");
@@ -122,14 +122,17 @@ describe("ensureProjection", () => {
     });
   });
 
-  it("stops the commit when a row out of the part refers to a row of the part", () => {
+  it("stops its commit, or the commit of a caller, when a row out of the part refers to a row of the part", () => {
     db.exec("PRAGMA foreign_keys = ON");
+    const schema = "CREATE TABLE docs (id TEXT PRIMARY KEY)";
     const options = { version: 1, part: "index", tables: ["docs"] };
-    ensureProjection(db, "CREATE TABLE docs (id TEXT PRIMARY KEY)", options);
+    ensureProjection(db, schema, options);
     db.exec("CREATE TABLE notes (doc TEXT REFERENCES docs (id)); INSERT INTO docs VALUES ('d'); INSERT INTO notes VALUES ('d')");
-    expect(() => ensureProjection(db, "CREATE TABLE docs (id TEXT PRIMARY KEY)", { ...options, version: 2 })).toThrow(/FOREIGN KEY/);
+    expect(() => ensureProjection(db, schema, { ...options, version: 2 })).toThrow(/FOREIGN KEY/);
+    expect(() => transaction(db, () => ensureProjection(db, schema, { ...options, version: 2 }))).toThrow(/FOREIGN KEY/);
     expect(schemaVersion(db, "index")).toBe(1);
     expect(rows("docs")).toBe(1);
+    expect(deferred()).toBe(0);
   });
 
   it("refuses a bad version, a part without tables and a bad table name", () => {
