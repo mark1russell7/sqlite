@@ -6,6 +6,7 @@
 import { openDatabase, type OpenOptions } from "./database.ts";
 import { attach, DEFAULT_TABLE, logSteps, type Equal, type EventLog, type LogRecord } from "./event-log.ts";
 import { migrate } from "./migrate.ts";
+import { parseFunction, type Parse } from "./schema.ts";
 
 /** A log that owns its connection: `openEventLog` gives it. */
 export interface EventLogFile<E extends LogRecord> extends EventLog<E> {
@@ -26,14 +27,14 @@ export interface EventLogFileOptions<E> extends OpenOptions {
  * version gives an error. The rules of `eventLog` apply.
  *
  * @param path - The path of the file, or `:memory:`.
- * @param parse - The function that changes a stored JSON value into an event. It throws on a value that is not an event.
+ * @param parse - The parse of a stored JSON value into an event. It is a function or a validator of the Standard Schema.
  * @param options - The pragmas of the connection, and the equality of events. The defaults are the defaults of `openDatabase`.
  */
-export function openEventLog<E extends LogRecord>(path: string, parse: (value: unknown) => E, options: EventLogFileOptions<E> = {}): EventLogFile<E> {
+export function openEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options: EventLogFileOptions<E> = {}): EventLogFile<E> {
   const db = openDatabase(path, options);
   try {
     migrate(db, logSteps(DEFAULT_TABLE), { name: "log" });
-    const log = attach(db, DEFAULT_TABLE, parse, options.equal, "refuse");
+    const log = attach(db, DEFAULT_TABLE, parseFunction(parse), options.equal, "refuse");
     return {
       ...log,
       close() {

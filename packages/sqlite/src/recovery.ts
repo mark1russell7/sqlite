@@ -10,6 +10,7 @@ import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { checkTable, type EventLog, type LogRecord } from "./event-log.ts";
 import { sqliteFault, type SqliteFault } from "./faults.ts";
+import { parseFunction, type Parse } from "./schema.ts";
 
 /** The result of an integrity check. `problems` has the text of each problem that SQLite found. */
 export interface Integrity {
@@ -164,8 +165,11 @@ export function openOrQuarantine<T>(path: string, open: (path: string) => T, opt
 
 /** The options of `salvageEventLog`. */
 export interface SalvageOptions<E> {
-  /** This function changes a stored JSON value into an event. It throws on a value that is not an event. */
-  readonly parse: (value: unknown) => E;
+  /**
+   * This value changes a stored JSON value into an event. It is a function that throws on a value that is not an event,
+   * or a validator of the Standard Schema. A schema of zod 4 is such a validator. The salvage uses it on each readable event.
+   */
+  readonly parse: Parse<E>;
   /** This value is the table of the log in the broken file. The default is `events`. */
   readonly table?: string | undefined;
 }
@@ -206,6 +210,7 @@ export function salvageEventLog<E extends LogRecord>(source: string, target: Eve
   const counts = { read: 0, added: 0, duplicate: 0, conflict: 0, lost: 0 };
   const problems: string[] = [];
   let pending: E[] = [];
+  const parse = parseFunction(options.parse);
   const flush = (): void => {
     for (const result of target.appendAll(pending)) {
       if (result.kind === "added") counts.added++;
@@ -216,7 +221,7 @@ export function salvageEventLog<E extends LogRecord>(source: string, target: Eve
   };
   const take = (seq: number, body: string): void => {
     try {
-      pending.push(options.parse(JSON.parse(body)));
+      pending.push(parse(JSON.parse(body)));
       counts.read++;
     } catch (error) {
       counts.lost++;

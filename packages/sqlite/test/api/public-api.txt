@@ -27,6 +27,7 @@ Migration: build/index.d.ts#Migration
 type Nested: build/transaction.d.ts#Nested
 type Newer: build/migrate.d.ts#Newer
 type OpenOptions: build/database.d.ts#OpenOptions
+type Parse: build/schema.d.ts#Parse
 type Projected: build/projection.d.ts#Projected
 ProjectionOptions: build/index.d.ts#ProjectionOptions
 type QuarantineOptions: build/recovery.d.ts#QuarantineOptions
@@ -37,6 +38,7 @@ SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
 SQLITE_FAULT_ACTIONS: build/faults.d.ts#SQLITE_FAULT_ACTIONS
 type SalvageOptions: build/recovery.d.ts#SalvageOptions
 type Salvaged: build/recovery.d.ts#Salvaged
+SchemaError: build/schema.d.ts#SchemaError
 type Snapshot: build/recovery.d.ts#Snapshot
 type SqlChanges: build/connection.d.ts#SqlChanges
 type SqlConnection: build/connection.d.ts#SqlConnection
@@ -45,6 +47,9 @@ type SqlValue: build/connection.d.ts#SqlValue
 type SqliteFault: build/faults.d.ts#SqliteFault
 type SqliteFaultAction: build/faults.d.ts#SqliteFaultAction
 type SqliteFaultKind: build/faults.d.ts#SqliteFaultKind
+type StandardIssue: build/schema.d.ts#StandardIssue
+type StandardResult: build/schema.d.ts#StandardResult
+type StandardSchema: build/schema.d.ts#StandardSchema
 type Synchronous: build/database.d.ts#Synchronous
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
@@ -94,14 +99,19 @@ type Migrated: build/migrate.d.ts#Migrated
 type Migration: build/migrate.d.ts#Migration
 type Nested: build/transaction.d.ts#Nested
 type Newer: build/migrate.d.ts#Newer
+type Parse: build/schema.d.ts#Parse
 type Projected: build/projection.d.ts#Projected
 type ProjectionOptions: build/projection.d.ts#ProjectionOptions
 type ReadOptions: build/event-log.d.ts#ReadOptions
 SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
+SchemaError: build/schema.d.ts#SchemaError
 type SqlChanges: build/connection.d.ts#SqlChanges
 type SqlConnection: build/connection.d.ts#SqlConnection
 type SqlStatement: build/connection.d.ts#SqlStatement
 type SqlValue: build/connection.d.ts#SqlValue
+type StandardIssue: build/schema.d.ts#StandardIssue
+type StandardResult: build/schema.d.ts#StandardResult
+type StandardSchema: build/schema.d.ts#StandardSchema
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
 type WasmConnection: build/wasm.d.ts#WasmConnection
@@ -170,7 +180,7 @@ export interface EventLogFileOptions<E> extends OpenOptions {
 }
 
 ### build/event-log-file.d.ts#openEventLog
-export declare function openEventLog<E extends LogRecord>(path: string, parse: (value: unknown) => E, options?: EventLogFileOptions<E>): EventLogFile<E>;
+export declare function openEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options?: EventLogFileOptions<E>): EventLogFile<E>;
 
 ### build/event-log.d.ts#Accept
 export type Accept<E, P> = (event: E) => P | undefined;
@@ -218,7 +228,7 @@ export interface EventLog<E extends LogRecord> {
 
 ### build/event-log.d.ts#EventLogOptions
 export interface EventLogOptions<E> {
-  readonly parse: (value: unknown) => E;
+  readonly parse: Parse<E>;
   readonly table?: string | undefined;
   readonly equal?: Equal<E> | undefined;
   readonly nested?: Nested | undefined;
@@ -376,7 +386,7 @@ export interface Recovered<T> {
 
 ### build/recovery.d.ts#SalvageOptions
 export interface SalvageOptions<E> {
-  readonly parse: (value: unknown) => E;
+  readonly parse: Parse<E>;
   readonly table?: string | undefined;
 }
 
@@ -410,6 +420,46 @@ export declare function salvageEventLog<E extends LogRecord>(source: string, tar
 
 ### build/recovery.d.ts#snapshot
 export declare function snapshot(db: DatabaseSync, path: string): Snapshot;
+
+### build/schema.d.ts#Parse
+export type Parse<E> = ((value: unknown) => E) | StandardSchema<E>;
+
+### build/schema.d.ts#SchemaError
+export declare class SchemaError extends TypeError {
+  override readonly name = "SchemaError";
+  readonly vendor: string;
+  readonly issues: readonly StandardIssue[];
+  constructor(vendor: string, issues: readonly StandardIssue[]);
+}
+
+### build/schema.d.ts#StandardIssue
+export interface StandardIssue {
+  readonly message: string;
+  readonly path?: readonly (PropertyKey | {
+    readonly key: PropertyKey;
+  })[] | undefined;
+}
+
+### build/schema.d.ts#StandardResult
+export type StandardResult<Output> = {
+  readonly value: Output;
+  readonly issues?: undefined;
+} | {
+  readonly issues: readonly StandardIssue[];
+};
+
+### build/schema.d.ts#StandardSchema
+export interface StandardSchema<Output> {
+  readonly "~standard": {
+    readonly version: 1;
+    readonly vendor: string;
+    readonly validate: (value: unknown) => StandardResult<Output> | Promise<StandardResult<Output>>;
+    readonly types?: {
+      readonly input: unknown;
+      readonly output: Output;
+    } | undefined;
+  };
+}
 
 ### build/transaction.d.ts#Nested
 export type Nested = "refuse" | "savepoint";

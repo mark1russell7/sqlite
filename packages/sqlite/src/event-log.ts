@@ -6,6 +6,7 @@
  */
 import type { SqlConnection } from "./connection.ts";
 import { migrate, SCHEMA_VERSIONS_TABLE } from "./migrate.ts";
+import { parseFunction, type Parse } from "./schema.ts";
 import { transaction, type Nested } from "./transaction.ts";
 
 /** The fields that the log reads from each event. The log keeps the full event as JSON. */
@@ -93,8 +94,11 @@ export class BrokenLogError extends Error {
 
 /** The options of `eventLog`. */
 export interface EventLogOptions<E> {
-  /** This function changes a stored JSON value into an event. It throws on a value that is not an event. */
-  readonly parse: (value: unknown) => E;
+  /**
+   * This value changes a stored JSON value into an event. It is a function that throws on a value that is not an event,
+   * or a validator of the Standard Schema. A schema of zod 4 is such a validator. The log uses it when it reads a stored event.
+   */
+  readonly parse: Parse<E>;
   /** This value is the name of the table of the log. The default is `events`. A file can have many logs in different tables. */
   readonly table?: string | undefined;
   /** This function tells if a new event is equal to the stored event with its id. The default compares the JSON text. */
@@ -157,7 +161,7 @@ export function eventLog<E extends LogRecord>(db: SqlConnection, options: EventL
   const table = options.table ?? DEFAULT_TABLE;
   checkTable(table);
   migrate(db, logSteps(table), { part: `event-log:${table}`, name: `log ${table}` });
-  return attach(db, table, options.parse, options.equal, options.nested ?? "refuse");
+  return attach(db, table, parseFunction(options.parse), options.equal, options.nested ?? "refuse");
 }
 
 /** This function makes the log object on a table with a current schema. `openEventLog` uses it too. */
