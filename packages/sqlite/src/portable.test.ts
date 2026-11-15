@@ -22,8 +22,13 @@ function valueImports(source: string): string[] {
   return specifiers;
 }
 
-/** This function follows the value imports from a module of `src`, and gives each module and each import out of `src`. */
-function closure(start: string): { modules: string[]; external: string[] } {
+/** This function gives the specifiers of each import of a module, also `import type`. */
+function allImports(source: string): string[] {
+  return [...[...source.matchAll(FROM)].map((match) => match[3] as string), ...[...source.matchAll(BARE)].map((match) => match[1] as string)];
+}
+
+/** This function follows the imports from a module of `src`, and gives each module and each import out of `src`. */
+function closure(start: string, imports: (source: string) => string[] = valueImports): { modules: string[]; external: string[] } {
   const modules = new Set<string>();
   const external = new Set<string>();
   const queue = [start];
@@ -33,7 +38,7 @@ function closure(start: string): { modules: string[]; external: string[] } {
     const source = readFileSync(join(SOURCE, file), "utf8");
     if (/\bimport\s*\(/.test(source)) external.add(`import() in ${file}`);
     if (/\brequire\s*\(/.test(source)) external.add(`require() in ${file}`);
-    for (const specifier of valueImports(source)) {
+    for (const specifier of imports(source)) {
       if (specifier.startsWith("./") && !specifier.slice(2).includes("/")) queue.push(specifier.slice(2));
       else external.add(specifier);
     }
@@ -72,9 +77,17 @@ const parse = (value: unknown): Note => value as Note;
 describe("the portable entry", () => {
   it("imports no module out of the package at run time", () => {
     expect(closure("portable.ts")).toEqual({
-      modules: ["event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "transaction.ts"],
+      modules: ["event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "transaction.ts", "wasm.ts"],
       external: [],
     });
+  });
+
+  it("names no module out of the package in its types, so a browser project needs no @types/node", () => {
+    expect(closure("portable.ts", allImports)).toEqual({
+      modules: ["connection.ts", "event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "transaction.ts", "wasm.ts"],
+      external: [],
+    });
+    expect(closure("index.ts", allImports).external).toEqual(expect.arrayContaining(["node:sqlite"]));
   });
 
   it("sees the node: imports of the main entry, so the walk reads value imports", () => {
@@ -113,6 +126,7 @@ describe("the portable entry", () => {
       "tableColumns",
       "transaction",
       "userVersion",
+      "wasmConnection",
     ]);
     for (const name of names) expect(portable[name as keyof typeof portable]).toBe(entry[name as keyof typeof entry]);
   });

@@ -34,3 +34,4 @@ export {
   type LogRecord,
   type ReadOptions,
 } from "./event-log.ts";
+export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";

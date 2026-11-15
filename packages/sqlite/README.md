@@ -2,7 +2,7 @@
 
 Databases on one computer through `node:sqlite`. The package has the connection with its pragmas, the migrations by schema version and the write transaction. It also has a typed append-only event log, the faults of SQLite and the recovery of a broken file. It has no dependencies.
 
-The entry `@mark1russell7/sqlite/portable` operates on other drivers of SQLite too, also in a browser.
+The entry `@mark1russell7/sqlite/portable` operates on other drivers of SQLite too, also on SQLite in WebAssembly in a browser. The [site](https://mark1russell7.github.io/sqlite/) has a live demo of the event log.
 
 ```sh
 npm install @mark1russell7/sqlite
@@ -291,10 +291,29 @@ const log = eventLog(db, { parse });
 - An adapter gives each row as an object with one field for each column. `get` gives `undefined` when the result has no rows.
 - `run` gives a `SqlChanges`: the number of changed rows and the id of the last added row.
 - `isTransaction` is true from `BEGIN` to the end of the transaction. A driver without it can use `sqlite3_get_autocommit`, which gives 0 in a transaction.
-- `Migration<D>` and `ProjectionOptions<D>` take the type of the connection. Thus each step gets the full connection of the driver. The default is `DatabaseSync`.
+- `Migration<D>` and `ProjectionOptions<D>` take the type of the connection. Thus each step gets the full connection of the driver. In this entry, the default is `SqlConnection`. In the main entry, the default is `DatabaseSync`.
 - `openEventLog`, the faults and the recovery stay in the main entry, because they need Node.js.
-- The types name `DatabaseSync` as a default. An app without `@types/node` needs `skipLibCheck` in its `tsconfig.json`.
-- A test of the package follows each import of the entry. It fails when the JavaScript of the entry gets to a module out of the package.
+- A test of the package follows each import of the entry, also each `import type`. It fails when the entry gets to a module out of the package. Thus a browser app needs no `@types/node`.
+
+### SQLite in WebAssembly
+
+`wasmConnection` is the adapter for [`@sqlite.org/sqlite-wasm`](https://www.npmjs.com/package/@sqlite.org/sqlite-wasm). Its types are structural, so this package does not depend on that package.
+
+```ts
+import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
+import { eventLog, migrate, wasmConnection } from "@mark1russell7/sqlite/portable";
+
+const sqlite3 = await sqlite3InitModule();
+const db = wasmConnection(sqlite3, new sqlite3.oo1.DB(":memory:", "c"));
+migrate(db, steps);
+const log = eventLog(db, { parse });
+db.close();
+```
+
+- The connection keeps one compiled statement for each SQL text. `close` finalizes each statement, and then closes the database.
+- Each call reads the full result and then resets its statement. Thus `iterate` gives an array, not a stream.
+- The tests of the package run the migrations, the projections, the transaction and the event log on the real driver.
+- With Vite, exclude `@sqlite.org/sqlite-wasm` from `optimizeDeps`, as the README of that package tells.
 
 ## The experimental warning
 

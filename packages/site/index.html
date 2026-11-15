@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>sqlite</title>
-<meta name="description" content="Databases on one computer through node:sqlite: safe settings, migrations, transactions, typed append-only event logs and recovery.">
+<meta name="description" content="Databases on one computer through node:sqlite: safe settings, migrations, transactions, typed append-only event logs and recovery. A live demo runs the event log on SQLite in WebAssembly.">
 <script>
   // The theme before the first paint: the choice of the visitor, else the theme of the system.
   try { const t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
@@ -27,12 +27,29 @@
   <h1>sqlite</h1>
   <p class="lead">Databases on one computer through node:sqlite: safe settings, migrations, transactions, typed append-only event logs and recovery.</p>
 
+  <section id="demo" class="demo" aria-labelledby="demo-title">
+    <h2 id="demo-title">Try the event log</h2>
+    <p class="measure">Three copies of one log, as on three phones without a network. Each copy is its own SQLite database in this tab. Write notes, send them from copy to copy, and make a conflict. The page checks the join laws again after each change.</p>
+    <p id="engine" class="note">SQLite in WebAssembly loads.</p>
+    <p id="agreement" class="agreement" role="status" aria-live="polite">The copies load.</p>
+    <div id="copies" class="copies"></div>
+    <div class="controls">
+      <button id="exchange" class="primary" type="button" disabled>Exchange all</button>
+      <button id="reset" type="button" disabled>Start again</button>
+      <p id="last" class="last" aria-live="polite"></p>
+    </div>
+    <ul id="conflicts" class="conflicts" aria-label="The conflicts of the last change" hidden></ul>
+    <h3>The join laws, checked after each change</h3>
+    <ul id="laws" class="laws"></ul>
+    <noscript><p class="note">The demo needs JavaScript.</p></noscript>
+  </section>
+
   <h2>Install</h2>
   <div class="command">
     <code id="install">pnpm add @mark1russell7/sqlite</code>
     <button id="copy" type="button">Copy</button>
   </div>
-  <p class="note">This package has no release on npm yet. <a href="./releases/">Releases</a> shows each version, and <a href="./status/">Status</a> shows the open work.</p>
+  <p class="note measure">Each version is on npm. <a href="./releases/">Releases</a> shows each version and its changes, and <a href="./status/">Status</a> shows the open work. The demo uses the entry <code>@mark1russell7/sqlite/portable</code> and its adapter <code>wasmConnection</code>.</p>
 </main>
 
 <script type="module" src="./src/index.ts"></script>

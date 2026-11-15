@@ -14,4 +14,10 @@ describe("the home page", () => {
     expect(page).toContain('href="./status/"');
     expect(page).toContain('href="https://github.com/mark1russell7/sqlite"');
   });
+
+  it("has the demo of the event log, and says that the package is on npm", () => {
+    for (const id of ["demo", "engine", "agreement", "copies", "exchange", "reset", "last", "conflicts", "laws"]) expect(page).toContain(`id="${id}"`);
+    expect(page).toContain("Each version is on npm.");
+    expect(page).not.toContain("no release on npm yet");
+  });
 });

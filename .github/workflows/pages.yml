@@ -56,3 +56,5 @@ jobs:
       # The check opens each page in a browser at 360, 400 and 1280 pixels, in light and dark.
       site-check: true
       site-check-pages: /,/releases/,/status/
+      # The probe uses the live demo of the home page at each width: it writes, sends, makes a conflict and reads the laws.
+      site-check-probe: packages/site/src/check-probe.ts

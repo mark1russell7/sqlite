@@ -4,15 +4,15 @@
  *
  * @packageDocumentation
  */
-import type { DatabaseSync } from "node:sqlite";
 import type { SqlConnection } from "./connection.ts";
 import { transaction } from "./transaction.ts";
 
 /**
  * One step of a schema: SQL statements, or a function that changes the database. A step operates in the transaction of
- * its migration, so it does not start a transaction. `D` is the type of the connection. The default is `DatabaseSync`.
+ * its migration, so it does not start a transaction. `D` is the type of the connection. The default is `SqlConnection`,
+ * and the main entry sets the default `DatabaseSync`.
  */
-export type Migration<D extends SqlConnection = DatabaseSync> = string | ((db: D) => void);
+export type Migration<D extends SqlConnection = SqlConnection> = string | ((db: D) => void);
 
 /** The table that keeps the version of each named part of a file. `migrate` makes it at the first step of a part. */
 export const SCHEMA_VERSIONS_TABLE = "schema_versions";
