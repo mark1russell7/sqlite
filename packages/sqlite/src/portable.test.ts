@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { describePortable } from "./conformance.ts";
 import * as entry from "./index.ts";
 import * as portable from "./portable.ts";
 import type { LogRecord, SqlConnection, SqlStatement } from "./portable.ts";
@@ -77,14 +78,27 @@ const parse = (value: unknown): Note => value as Note;
 describe("the portable entry", () => {
   it("imports no module out of the package at run time", () => {
     expect(closure("portable.ts")).toEqual({
-      modules: ["event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "schema.ts", "transaction.ts", "wasm.ts"],
+      modules: ["checkpoint.ts", "clear.ts", "event-log.ts", "migrate.ts", "portable.ts", "probe.ts", "projection.ts", "schema.ts", "sqljs.ts", "transaction.ts", "wasm.ts"],
       external: [],
     });
   });
 
   it("names no module out of the package in its types, so a browser project needs no @types/node", () => {
     expect(closure("portable.ts", allImports)).toEqual({
-      modules: ["connection.ts", "event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "schema.ts", "transaction.ts", "wasm.ts"],
+      modules: [
+        "checkpoint.ts",
+        "clear.ts",
+        "connection.ts",
+        "event-log.ts",
+        "migrate.ts",
+        "portable.ts",
+        "probe.ts",
+        "projection.ts",
+        "schema.ts",
+        "sqljs.ts",
+        "transaction.ts",
+        "wasm.ts",
+      ],
       external: [],
     });
     expect(closure("index.ts", allImports).external).toEqual(expect.arrayContaining(["node:sqlite"]));
@@ -120,11 +134,14 @@ describe("the portable entry", () => {
       "SCHEMA_VERSIONS_TABLE",
       "SchemaError",
       "addMissingColumns",
+      "checkpoint",
+      "clearDatabase",
       "ensureProjection",
       "eventLog",
       "migrate",
       "readTransaction",
       "schemaVersion",
+      "sqlJsConnection",
       "tableColumns",
       "transaction",
       "userVersion",
@@ -152,3 +169,5 @@ describe("the portable entry", () => {
     file.close();
   });
 });
+
+describePortable("node:sqlite", () => new DatabaseSync(":memory:"));

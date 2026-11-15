@@ -13,7 +13,7 @@ import type { Migration as AnyMigration } from "./migrate.ts";
 import type { ProjectionOptions as AnyProjectionOptions } from "./projection.ts";
 
 export type { SqlChanges, SqlConnection, SqlStatement, SqlValue } from "./connection.ts";
-export { openDatabase, type OpenOptions, type Synchronous } from "./database.ts";
+export { openDatabase, type OpenOptions, type Synchronous, type WalMode } from "./database.ts";
 export {
   addMissingColumns,
   migrate,
@@ -44,6 +44,9 @@ export {
 export { openEventLog, type EventLogFile, type EventLogFileOptions } from "./event-log-file.ts";
 export { SchemaError, type Parse, type StandardIssue, type StandardResult, type StandardSchema } from "./schema.ts";
 export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";
+export { checkpoint, type CheckpointDatabase, type CheckpointMode, type Checkpointed } from "./checkpoint.ts";
+export { clearDatabase, type ClearOptions } from "./clear.ts";
+export { sqlJsConnection, type SqlJsConnection, type SqlJsDatabase, type SqlJsStatement, type SqlJsValue } from "./sqljs.ts";
 export {
   checkIntegrity,
   IntegrityError,

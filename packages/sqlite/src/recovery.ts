@@ -7,9 +7,10 @@
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, renameSync, rmSync, rmdirSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { checkTable, type EventLog, type LogRecord } from "./event-log.ts";
 import { sqliteFault, type SqliteFault } from "./faults.ts";
+import { NodeDatabase } from "./node-sqlite.ts";
 import { parseFunction, type Parse } from "./schema.ts";
 
 /** The result of an integrity check. `problems` has the text of each problem that SQLite found. */
@@ -241,7 +242,7 @@ export function salvageEventLog<E extends LogRecord>(source: string, target: Eve
 
   let db: DatabaseSync | undefined;
   try {
-    db = new DatabaseSync(source, { readOnly: true });
+    db = new NodeDatabase(source, { readOnly: true });
     db.prepare("SELECT name FROM sqlite_master LIMIT 1").get();
   } catch (error) {
     db?.close();

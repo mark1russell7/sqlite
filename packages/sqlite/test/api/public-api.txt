@@ -9,6 +9,10 @@
 type Accept: build/event-log.d.ts#Accept
 type Appended: build/event-log.d.ts#Appended
 BrokenLogError: build/event-log.d.ts#BrokenLogError
+type CheckpointDatabase: build/checkpoint.d.ts#CheckpointDatabase
+type CheckpointMode: build/checkpoint.d.ts#CheckpointMode
+type Checkpointed: build/checkpoint.d.ts#Checkpointed
+type ClearOptions: build/clear.d.ts#ClearOptions
 type ColumnDefinitions: build/migrate.d.ts#ColumnDefinitions
 EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
 type Equal: build/event-log.d.ts#Equal
@@ -43,6 +47,10 @@ SchemaError: build/schema.d.ts#SchemaError
 type Snapshot: build/recovery.d.ts#Snapshot
 type SqlChanges: build/connection.d.ts#SqlChanges
 type SqlConnection: build/connection.d.ts#SqlConnection
+type SqlJsConnection: build/sqljs.d.ts#SqlJsConnection
+type SqlJsDatabase: build/sqljs.d.ts#SqlJsDatabase
+type SqlJsStatement: build/sqljs.d.ts#SqlJsStatement
+type SqlJsValue: build/sqljs.d.ts#SqlJsValue
 type SqlStatement: build/connection.d.ts#SqlStatement
 type SqlValue: build/connection.d.ts#SqlValue
 type SqliteFault: build/faults.d.ts#SqliteFault
@@ -54,12 +62,15 @@ type StandardSchema: build/schema.d.ts#StandardSchema
 type Synchronous: build/database.d.ts#Synchronous
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
+type WalMode: build/database.d.ts#WalMode
 type WasmConnection: build/wasm.d.ts#WasmConnection
 type WasmDatabase: build/wasm.d.ts#WasmDatabase
 type WasmModule: build/wasm.d.ts#WasmModule
 type WasmStatement: build/wasm.d.ts#WasmStatement
 addMissingColumns: build/migrate.d.ts#addMissingColumns
 checkIntegrity: build/recovery.d.ts#checkIntegrity
+checkpoint: build/checkpoint.d.ts#checkpoint
+clearDatabase: build/clear.d.ts#clearDatabase
 ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
@@ -71,6 +82,7 @@ readTransaction: build/transaction.d.ts#readTransaction
 salvageEventLog: build/recovery.d.ts#salvageEventLog
 schemaVersion: build/migrate.d.ts#schemaVersion
 snapshot: build/recovery.d.ts#snapshot
+sqlJsConnection: build/sqljs.d.ts#sqlJsConnection
 sqliteFault: build/faults.d.ts#sqliteFault
 tableColumns: build/migrate.d.ts#tableColumns
 transaction: build/transaction.d.ts#transaction
@@ -89,6 +101,10 @@ quietSqliteWarning: build/warning.d.ts#quietSqliteWarning
 type Accept: build/event-log.d.ts#Accept
 type Appended: build/event-log.d.ts#Appended
 BrokenLogError: build/event-log.d.ts#BrokenLogError
+type CheckpointDatabase: build/checkpoint.d.ts#CheckpointDatabase
+type CheckpointMode: build/checkpoint.d.ts#CheckpointMode
+type Checkpointed: build/checkpoint.d.ts#Checkpointed
+type ClearOptions: build/clear.d.ts#ClearOptions
 type ColumnDefinitions: build/migrate.d.ts#ColumnDefinitions
 EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
 type Equal: build/event-log.d.ts#Equal
@@ -110,6 +126,10 @@ SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
 SchemaError: build/schema.d.ts#SchemaError
 type SqlChanges: build/connection.d.ts#SqlChanges
 type SqlConnection: build/connection.d.ts#SqlConnection
+type SqlJsConnection: build/sqljs.d.ts#SqlJsConnection
+type SqlJsDatabase: build/sqljs.d.ts#SqlJsDatabase
+type SqlJsStatement: build/sqljs.d.ts#SqlJsStatement
+type SqlJsValue: build/sqljs.d.ts#SqlJsValue
 type SqlStatement: build/connection.d.ts#SqlStatement
 type SqlValue: build/connection.d.ts#SqlValue
 type StandardIssue: build/schema.d.ts#StandardIssue
@@ -122,17 +142,44 @@ type WasmDatabase: build/wasm.d.ts#WasmDatabase
 type WasmModule: build/wasm.d.ts#WasmModule
 type WasmStatement: build/wasm.d.ts#WasmStatement
 addMissingColumns: build/migrate.d.ts#addMissingColumns
+checkpoint: build/checkpoint.d.ts#checkpoint
+clearDatabase: build/clear.d.ts#clearDatabase
 ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
 readTransaction: build/transaction.d.ts#readTransaction
 schemaVersion: build/migrate.d.ts#schemaVersion
+sqlJsConnection: build/sqljs.d.ts#sqlJsConnection
 tableColumns: build/migrate.d.ts#tableColumns
 transaction: build/transaction.d.ts#transaction
 userVersion: build/migrate.d.ts#userVersion
 wasmConnection: build/wasm.d.ts#wasmConnection
 
 ## Declarations
+
+### build/checkpoint.d.ts#CheckpointDatabase
+export type CheckpointDatabase = Pick<SqlConnection, "prepare" | "isTransaction">;
+
+### build/checkpoint.d.ts#CheckpointMode
+export type CheckpointMode = "PASSIVE" | "FULL" | "RESTART" | "TRUNCATE";
+
+### build/checkpoint.d.ts#Checkpointed
+export interface Checkpointed {
+  readonly busy: boolean;
+  readonly log: number;
+  readonly checkpointed: number;
+}
+
+### build/checkpoint.d.ts#checkpoint
+export declare function checkpoint(db: CheckpointDatabase, mode?: CheckpointMode): Checkpointed;
+
+### build/clear.d.ts#ClearOptions
+export interface ClearOptions {
+  readonly vacuum?: boolean | undefined;
+}
+
+### build/clear.d.ts#clearDatabase
+export declare function clearDatabase(db: SqlConnection, options?: ClearOptions): string[];
 
 ### build/connection.d.ts#SqlChanges
 export interface SqlChanges {
@@ -160,7 +207,8 @@ export type SqlValue = null | number | bigint | string | Uint8Array;
 
 ### build/database.d.ts#OpenOptions
 export interface OpenOptions {
-  readonly wal?: boolean | undefined;
+  readonly wal?: WalMode | undefined;
+  readonly readOnly?: boolean | undefined;
   readonly synchronous?: Synchronous | undefined;
   readonly busyTimeoutMs?: number | undefined;
   readonly makeFolder?: boolean | undefined;
@@ -169,6 +217,9 @@ export interface OpenOptions {
 
 ### build/database.d.ts#Synchronous
 export type Synchronous = "OFF" | "NORMAL" | "FULL" | "EXTRA";
+
+### build/database.d.ts#WalMode
+export type WalMode = boolean | "when-writable";
 
 ### build/database.d.ts#openDatabase
 export declare function openDatabase(path: string, options?: OpenOptions): DatabaseSync;
@@ -465,6 +516,34 @@ export interface StandardSchema<Output> {
   };
 }
 
+### build/sqljs.d.ts#SqlJsConnection
+export interface SqlJsConnection extends SqlConnection {
+  close(): void;
+}
+
+### build/sqljs.d.ts#SqlJsDatabase
+export interface SqlJsDatabase {
+  exec(sql: string): unknown;
+  prepare(sql: string): SqlJsStatement;
+  getRowsModified(): number;
+  close(): unknown;
+}
+
+### build/sqljs.d.ts#SqlJsStatement
+export interface SqlJsStatement {
+  bind(values: SqlJsValue[]): unknown;
+  step(): boolean;
+  getAsObject(): Record<string, unknown>;
+  reset(): unknown;
+  free(): unknown;
+}
+
+### build/sqljs.d.ts#SqlJsValue
+export type SqlJsValue = null | number | string | Uint8Array;
+
+### build/sqljs.d.ts#sqlJsConnection
+export declare function sqlJsConnection(db: SqlJsDatabase): SqlJsConnection;
+
 ### build/transaction.d.ts#Nested
 export type Nested = "refuse" | "savepoint";
 
@@ -478,6 +557,7 @@ export type TransactionDatabase = Pick<SqlConnection, "exec" | "isTransaction">;
 export interface TransactionOptions {
   readonly onRollbackError?: ((error: unknown) => void) | undefined;
   readonly nested?: Nested | undefined;
+  readonly commit?: boolean | undefined;
 }
 
 ### build/transaction.d.ts#readTransaction
