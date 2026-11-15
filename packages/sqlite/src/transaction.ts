@@ -4,10 +4,10 @@
  *
  * @packageDocumentation
  */
-import type { DatabaseSync } from "node:sqlite";
+import type { SqlConnection } from "./connection.ts";
 
 /** The part of a connection that a transaction uses. A test can give a fake. */
-export type TransactionDatabase = Pick<DatabaseSync, "exec" | "isTransaction">;
+export type TransactionDatabase = Pick<SqlConnection, "exec" | "isTransaction">;
 
 /** The options of `transaction`. */
 export interface TransactionOptions {

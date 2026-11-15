@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "@mark1russell7/sqlite",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Databases on one computer through node:sqlite: the pragmas, migrations by schema version, BEGIN IMMEDIATE transactions, a typed append-only event log as a grow-only set, the faults of SQLite, the recovery of a broken file and a filter of the experimental warning.",
   "keywords": [
     "sqlite",
@@ -37,6 +37,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./warning": "./src/warning.ts",
+    "./portable": "./src/portable.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -56,6 +57,11 @@
         "types": "./build/warning.d.ts",
         "import": "./build/warning.js",
         "default": "./build/warning.js"
+      },
+      "./portable": {
+        "types": "./build/portable.d.ts",
+        "import": "./build/portable.js",
+        "default": "./build/portable.js"
       },
       "./package.json": "./package.json"
     }

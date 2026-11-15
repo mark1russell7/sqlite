@@ -1,7 +1,8 @@
 // The laws of the log as a grow-only set. The join of two logs is the append of the events of one log to the other.
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { openEventLog, type Appended, type EventLogFile, type LogRecord } from "./event-log.ts";
+import { type Appended, type LogRecord } from "./event-log.ts";
+import { openEventLog, type EventLogFile } from "./event-log-file.ts";
 
 interface Fact extends LogRecord {
   readonly value: number;

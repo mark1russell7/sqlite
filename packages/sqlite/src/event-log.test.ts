@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "./database.ts";
-import { BrokenLogError, EVENT_LOG_SCHEMA_VERSION, eventLog, openEventLog, type EventLog, type LogRecord } from "./event-log.ts";
+import { BrokenLogError, EVENT_LOG_SCHEMA_VERSION, eventLog, type EventLog, type LogRecord } from "./event-log.ts";
+import { openEventLog } from "./event-log-file.ts";
 import { migrate, SCHEMA_VERSIONS_TABLE, schemaVersion, userVersion } from "./migrate.ts";
 import { transaction } from "./transaction.ts";
 

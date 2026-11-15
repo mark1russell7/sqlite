@@ -13,10 +13,11 @@ This file is the plan of sqlite. The Status page of the site reads it, and the t
 | SQ-7 | Nested transactions | done | Version 0.2.2: savepoints in a transaction, so a work can call a different work that writes. The event log can join a transaction of the caller. |
 | SQ-8 | The file of an older app | done | Version 0.2.3: adopt a file that has tables but no schema version. |
 | SQ-9 | The first move | open | An app with its own event log moves to this package. |
-| SQ-10 | The second move | open | An app with four stores moves to this package. Its first store moved on 0.2.2, and it waits for SQ-16. |
+| SQ-10 | The second move | open | An app with four stores moves to this package. Its first store moved on 0.2.2. Version 0.2.5 has what the other stores need. |
 | SQ-11 | The third move | open | An app with its own store and migrations moves to this package. |
 | SQ-12 | The map of homes | done | The map of homes tells that the package is on npm. |
-| SQ-13 | The site | open | A live demo of the event log and the faults. |
+| SQ-13 | The site | open | A live demo of the event log in a browser: two logs exchange events, and the page shows the join laws and the conflicts. It needs SQ-17. |
 | SQ-14 | Standard Schema validators | open | A validator of the Standard Schema as the parse of a log. |
 | SQ-15 | Projections | done | Version 0.2.4: a file of a projection or a cache opens empty when its version differs, as the index and the vectors of polite-crawler do today. SQ-10 needs it. |
 | SQ-16 | Newer files kept | done | Version 0.2.5: with `newer: "keep"`, an older app does no step on a newer file and keeps its version. SQ-10 needs it. |
+| SQ-17 | The portable entry | done | Version 0.2.6: the entry `@mark1russell7/sqlite/portable` operates on each connection with the type `SqlConnection`, also in a browser. SQ-13 needs it. |

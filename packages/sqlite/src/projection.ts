@@ -6,11 +6,12 @@
  * @packageDocumentation
  */
 import type { DatabaseSync } from "node:sqlite";
+import type { SqlConnection } from "./connection.ts";
 import { schemaVersion, setSchemaVersion, type Migration } from "./migrate.ts";
 import { transaction } from "./transaction.ts";
 
-/** The options of `ensureProjection`. */
-export interface ProjectionOptions {
+/** The options of `ensureProjection`. `D` is the type of the connection. The default is `DatabaseSync`. */
+export interface ProjectionOptions<D extends SqlConnection = DatabaseSync> {
   /** This value is the schema version of the projection: a whole number of 1 or more. A change of the schema needs a new version. */
   readonly version: number;
   /**
@@ -21,7 +22,7 @@ export interface ProjectionOptions {
   /** This value lists the tables of the part. A part needs it, because a rebuild removes only these tables. */
   readonly tables?: readonly string[] | undefined;
   /** This function tells if a file of the correct version has the projection. When it gives false, the projection opens empty. */
-  readonly check?: ((db: DatabaseSync) => boolean) | undefined;
+  readonly check?: ((db: D) => boolean) | undefined;
 }
 
 /** The result of `ensureProjection`: true when the projection opened empty, and the version of the file before. */
@@ -38,13 +39,13 @@ function quoted(name: string): string {
 }
 
 /** This function gives the names of the objects of the main schema that have one of the types of `pragma_table_list`. */
-function objects(db: DatabaseSync, types: string): string[] {
+function objects(db: SqlConnection, types: string): string[] {
   const sql = `SELECT name FROM pragma_table_list WHERE schema = 'main' AND type IN (${types}) AND substr(name, 1, 7) <> 'sqlite_'`;
   return (db.prepare(sql).all() as { name: string }[]).map((row) => row.name);
 }
 
 /** This function removes each view and each table of the file. It removes a virtual table before its shadow tables. */
-function dropAll(db: DatabaseSync): void {
+function dropAll(db: SqlConnection): void {
   for (const name of objects(db, "'view'")) db.exec(`DROP VIEW IF EXISTS ${quoted(name)}`);
   for (const name of objects(db, "'virtual'")) db.exec(`DROP TABLE IF EXISTS ${quoted(name)}`);
   for (const name of objects(db, "'table', 'shadow'")) db.exec(`DROP TABLE IF EXISTS ${quoted(name)}`);
@@ -57,7 +58,7 @@ function dropAll(db: DatabaseSync): void {
  * The setting stays on until the `COMMIT` or the `ROLLBACK`, and SQLite then sets it off. Do not set it off earlier.
  * A change to off also clears the count of the deferred violations, and then the commit does not see them.
  */
-function drop(db: DatabaseSync, part: string | undefined, tables: readonly string[]): void {
+function drop(db: SqlConnection, part: string | undefined, tables: readonly string[]): void {
   const enforced = (db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys === 1;
   if (enforced) db.exec("PRAGMA defer_foreign_keys = ON");
   if (part === undefined) dropAll(db);
@@ -84,7 +85,7 @@ function drop(db: DatabaseSync, part: string | undefined, tables: readonly strin
  * @param schema - The schema of the projection: SQL statements, or a function that makes the tables.
  * @param options - The version, the part and its tables, and the check of a file.
  */
-export function ensureProjection(db: DatabaseSync, schema: Migration, options: ProjectionOptions): Projected {
+export function ensureProjection<D extends SqlConnection>(db: D, schema: Migration<D>, options: ProjectionOptions<D>): Projected {
   const { version, part, tables, check } = options;
   if (!Number.isInteger(version) || version < 1) throw new RangeError(`The version of a projection must be a whole number of 1 or more, not ${String(version)}.`);
   if (part !== undefined) {
