@@ -1,6 +1,7 @@
 /**
  * The write transaction: `BEGIN IMMEDIATE`, the work, and `COMMIT`, or a `ROLLBACK` after an error. In a transaction in
- * progress, a savepoint can take the place of the transaction.
+ * progress, a savepoint can take the place of the transaction. The read transaction reads one snapshot of the file,
+ * and it does not take the write lock.
  *
  * @packageDocumentation
  */
@@ -8,6 +9,9 @@ import type { SqlConnection } from "./connection.ts";
 
 /** The part of a connection that a transaction uses. A test can give a fake. */
 export type TransactionDatabase = Pick<SqlConnection, "exec" | "isTransaction">;
+
+/** The part of a connection that a read transaction uses. */
+export type ReadTransactionDatabase = Pick<SqlConnection, "exec" | "prepare" | "isTransaction">;
 
 /** The options of `transaction`. */
 export interface TransactionOptions {
@@ -55,10 +59,50 @@ function isThenable(value: unknown): boolean {
  * @param options - The function that gets a failed rollback, and the behavior in a transaction in progress.
  */
 export function transaction<T>(db: TransactionDatabase, work: () => T, options: TransactionOptions = {}): T {
+  return run(db, "BEGIN IMMEDIATE", work, options);
+}
+
+/**
+ * This function does the work in one read transaction on one snapshot of the file, and gives the result of the work.
+ *
+ * The transaction starts with `BEGIN DEFERRED` and a read, so the snapshot starts at the call. Each read of the work
+ * sees the file as it was then. The transaction does not take the write lock. In WAL mode, a writer on a different
+ * connection does not wait for it. The work cannot write: `PRAGMA query_only` is on during the work. The function sets
+ * the earlier value again at the end.
+ *
+ * The rules of `transaction` apply: the commit, the rollback after an error, the synchronous work and `nested`. Keep
+ * the work short. While the snapshot is open, a checkpoint cannot pass it, so the WAL file grows.
+ *
+ * @param db - The connection.
+ * @param work - The work. It only reads.
+ * @param options - The function that gets a failed rollback, and the behavior in a transaction in progress.
+ */
+export function readTransaction<T>(db: ReadTransactionDatabase, work: () => T, options: TransactionOptions = {}): T {
+  const row = db.prepare("PRAGMA query_only").get() as { readonly query_only?: number | bigint } | undefined;
+  const readOnly = Number(row?.query_only ?? 0) !== 0;
+  if (!readOnly) db.exec("PRAGMA query_only = ON");
+  try {
+    return run(
+      db,
+      "BEGIN DEFERRED",
+      () => {
+        // A deferred transaction gets its snapshot at its first read. This read starts the snapshot at the call.
+        db.prepare("SELECT 1 FROM sqlite_schema LIMIT 1").get();
+        return work();
+      },
+      options,
+    );
+  } finally {
+    if (!readOnly) db.exec("PRAGMA query_only = OFF");
+  }
+}
+
+/** This function does the work after a `BEGIN`, or in a savepoint of the transaction in progress. */
+function run<T>(db: TransactionDatabase, begin: string, work: () => T, options: TransactionOptions): T {
   const nested = options.nested ?? "refuse";
   if (!NESTED.includes(nested)) throw new RangeError(`The value of nested must be one of ${NESTED.join(", ")}, not ${String(nested)}.`);
   if (nested === "savepoint" && db.isTransaction) return savepoint(db, work, options);
-  db.exec("BEGIN IMMEDIATE");
+  db.exec(begin);
   try {
     const result = work();
     if (isThenable(result)) {

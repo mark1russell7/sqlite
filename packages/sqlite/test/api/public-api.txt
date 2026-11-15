@@ -33,6 +33,7 @@ ProjectionOptions: build/index.d.ts#ProjectionOptions
 type QuarantineOptions: build/recovery.d.ts#QuarantineOptions
 type Quarantined: build/recovery.d.ts#Quarantined
 type ReadOptions: build/event-log.d.ts#ReadOptions
+type ReadTransactionDatabase: build/transaction.d.ts#ReadTransactionDatabase
 type Recovered: build/recovery.d.ts#Recovered
 SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
 SQLITE_FAULT_ACTIONS: build/faults.d.ts#SQLITE_FAULT_ACTIONS
@@ -66,6 +67,7 @@ openDatabase: build/database.d.ts#openDatabase
 openEventLog: build/event-log-file.d.ts#openEventLog
 openOrQuarantine: build/recovery.d.ts#openOrQuarantine
 quarantine: build/recovery.d.ts#quarantine
+readTransaction: build/transaction.d.ts#readTransaction
 salvageEventLog: build/recovery.d.ts#salvageEventLog
 schemaVersion: build/migrate.d.ts#schemaVersion
 snapshot: build/recovery.d.ts#snapshot
@@ -103,6 +105,7 @@ type Parse: build/schema.d.ts#Parse
 type Projected: build/projection.d.ts#Projected
 type ProjectionOptions: build/projection.d.ts#ProjectionOptions
 type ReadOptions: build/event-log.d.ts#ReadOptions
+type ReadTransactionDatabase: build/transaction.d.ts#ReadTransactionDatabase
 SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
 SchemaError: build/schema.d.ts#SchemaError
 type SqlChanges: build/connection.d.ts#SqlChanges
@@ -122,6 +125,7 @@ addMissingColumns: build/migrate.d.ts#addMissingColumns
 ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
+readTransaction: build/transaction.d.ts#readTransaction
 schemaVersion: build/migrate.d.ts#schemaVersion
 tableColumns: build/migrate.d.ts#tableColumns
 transaction: build/transaction.d.ts#transaction
@@ -464,6 +468,9 @@ export interface StandardSchema<Output> {
 ### build/transaction.d.ts#Nested
 export type Nested = "refuse" | "savepoint";
 
+### build/transaction.d.ts#ReadTransactionDatabase
+export type ReadTransactionDatabase = Pick<SqlConnection, "exec" | "prepare" | "isTransaction">;
+
 ### build/transaction.d.ts#TransactionDatabase
 export type TransactionDatabase = Pick<SqlConnection, "exec" | "isTransaction">;
 
@@ -472,6 +479,9 @@ export interface TransactionOptions {
   readonly onRollbackError?: ((error: unknown) => void) | undefined;
   readonly nested?: Nested | undefined;
 }
+
+### build/transaction.d.ts#readTransaction
+export declare function readTransaction<T>(db: ReadTransactionDatabase, work: () => T, options?: TransactionOptions): T;
 
 ### build/transaction.d.ts#transaction
 export declare function transaction<T>(db: TransactionDatabase, work: () => T, options?: TransactionOptions): T;

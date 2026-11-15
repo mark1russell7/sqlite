@@ -123,6 +123,7 @@ describe("the portable entry", () => {
       "ensureProjection",
       "eventLog",
       "migrate",
+      "readTransaction",
       "schemaVersion",
       "tableColumns",
       "transaction",

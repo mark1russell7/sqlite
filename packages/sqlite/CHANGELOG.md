@@ -1,5 +1,16 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.2
+
+This version adds the read transaction. The change is backward compatible.
+
+- `readTransaction` does a work on one snapshot of the file. It does not take the write lock, so a writer on a different connection does not wait.
+- The work cannot write: `PRAGMA query_only` is on during the work. The function sets the earlier value again at the end.
+- The commit, the rollback, the synchronous work and the option `nested` are the same as in `transaction`.
+- The type `ReadTransactionDatabase` is new. Both entries export the function and the type.
+
+Runtime dependencies: none.
+
 ## 0.3.1
 
 This version lets a log take a validator of the Standard Schema as its parse. The change is backward compatible.
