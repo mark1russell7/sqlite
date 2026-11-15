@@ -22,12 +22,22 @@ const db = openDatabase("data/app.db", { synchronous: "NORMAL", busyTimeoutMs: 5
 
 | Option | Default | What it sets |
 | --- | --- | --- |
-| `wal` | `true` | The write-ahead log. Then readers do not stop a writer. |
+| `wal` | `true` | The write-ahead log. Then readers do not stop a writer. With `"when-writable"`, a file that the process cannot write keeps its journal mode. |
+| `readOnly` | `false` | The connection reads the file and cannot write it. The file must exist. The journal mode does not change. |
 | `synchronous` | `FULL` | The pragma `synchronous`. With WAL, `NORMAL` can lose the last commits at a power cut. The file stays good. |
 | `busyTimeoutMs` | `0` | The time that a statement waits for the lock of a different connection. With `0`, the statement fails at once. |
 | `makeFolder` | `false` | The function makes the folder of the file. `folderMode` sets the mode of the new folders. |
 
-Each default other than `wal` is the default of SQLite.
+Each default other than `wal` is the default of SQLite. Foreign keys are on, because `node:sqlite` turns them on for each connection.
+
+A tool that only reads the file of a different app opens it with `readOnly`. The open does not change the file:
+
+```ts
+const db = openDatabase("catalog.db", { readOnly: true, busyTimeoutMs: 5000 });
+```
+
+- `readOnly` with `wal: true` or `makeFolder: true` is an error, because both change the disk.
+- With `wal: "when-writable"`, the open sets WAL when it can. On a file that the process cannot write, the connection reads the file, and each write throws.
 
 ## Migrations
 
@@ -124,6 +134,7 @@ const added = transaction(db, () => {
 - A call in a transaction throws, because SQLite refuses a nested `BEGIN`.
 - With `nested: "savepoint"`, a call in a transaction is a savepoint of that transaction. Out of a transaction, the call is a plain transaction.
 - `onRollbackError` gets the error of a rollback that did not end.
+- With `commit: false`, the function rolls back after the work and gives the result of the work. This is a dry run: the work sees its writes, and the file does not keep them.
 
 A savepoint lets a store join the transaction of its caller. An error of the work rolls back only the writes of the work, and the transaction of the caller continues:
 
@@ -157,6 +168,40 @@ const matrix = readTransaction(db, () => {
 - The work cannot write. `PRAGMA query_only` is on during the work, and the function sets the earlier value again at the end.
 - The rules of `transaction` apply: the rollback after an error, the synchronous work, `nested` and `onRollbackError`.
 - Keep the work short. A checkpoint cannot pass an open snapshot, so the WAL file grows.
+
+## The checkpoint
+
+`checkpoint` copies the pages of the WAL file into the database file, and gives the counts of `PRAGMA wal_checkpoint`. Before a copy of the database file, use `TRUNCATE`:
+
+```ts
+import { checkpoint } from "@mark1russell7/sqlite";
+
+const { busy } = checkpoint(db, "TRUNCATE");
+if (busy) throw new Error("A different connection has the file. The copy can lack the last commits.");
+copyFileSync("app.db", "backup/app.db");
+```
+
+- The modes are `PASSIVE` (the default), `FULL`, `RESTART` and `TRUNCATE`. `TRUNCATE` also makes the WAL file empty.
+- `busy` is true when a different connection stopped the checkpoint before its end.
+- A database that is not in WAL mode gives `-1` for each count.
+- SQLite refuses a checkpoint in a transaction, so the function throws there.
+
+## The clear of a database
+
+A cache that makes its tables again for a new schema uses `clearDatabase`. The function drops each view and each table, and sets `user_version` to 0:
+
+```ts
+import { clearDatabase, migrate } from "@mark1russell7/sqlite";
+
+if (storedFormat(db) !== FORMAT) clearDatabase(db);
+migrate(db, steps);
+```
+
+- The indexes and the triggers go with their tables. The tables of SQLite itself stay.
+- Foreign keys are off during the drop, so the order of the tables has no effect. The function sets the earlier value again.
+- The drop is one transaction. After it, `VACUUM` makes the file small again. Give `vacuum: false` to skip it.
+- The function gives the names of the dropped views and tables. In a transaction, it throws.
+- Do not clear a file that keeps the only copy of its data. A clear is for a cache that a different source can fill again.
 
 ## The event log
 
@@ -312,7 +357,7 @@ if (quarantined?.database !== undefined) {
 
 ## The portable entry
 
-The entry `@mark1russell7/sqlite/portable` has the migrations, the projections, the transactions and the event log. It imports no module of Node.js. Thus it operates in a browser too.
+The entry `@mark1russell7/sqlite/portable` has the migrations, the projections, the transactions, the checkpoint, the clear and the event log. It imports no module of Node.js. Thus it operates in a browser too.
 
 These functions take a `SqlConnection`: the part of a connection that the package uses. It has `exec`, `prepare` and `isTransaction`. Its statements have `get`, `all`, `run` and `iterate`. `DatabaseSync` of `node:sqlite` has these members. For a different driver, write a small adapter.
 
@@ -350,6 +395,26 @@ db.close();
 - Each call reads the full result and then resets its statement. Thus `iterate` gives an array, not a stream.
 - The tests of the package run the migrations, the projections, the transaction and the event log on the real driver.
 - With Vite, exclude `@sqlite.org/sqlite-wasm` from `optimizeDeps`, as the README of that package tells.
+
+### sql.js
+
+`sqlJsConnection` is the adapter for [`sql.js`](https://www.npmjs.com/package/sql.js). Its types are structural, so this package does not depend on that package.
+
+```ts
+import initSqlJs from "sql.js";
+import { migrate, sqlJsConnection } from "@mark1russell7/sqlite/portable";
+
+const SQL = await initSqlJs();
+const db = sqlJsConnection(new SQL.Database(bytes));
+migrate(db, steps);
+db.close();
+```
+
+- sql.js keeps the database in memory. To keep the changes, the app writes the bytes of `export()` to a file.
+- sql.js gives each integer as a JavaScript number. A `bigint` parameter must be a safe integer, else the call throws a `RangeError`.
+- sql.js has no call for the state of the transaction. Thus `isTransaction` starts a `BEGIN`. SQLite refuses it in a transaction, and else a `ROLLBACK` ends it at once.
+- The statements, `iterate` and `close` operate as in `wasmConnection`.
+- The tests of the package run one suite of the portable entry on `node:sqlite`, SQLite in WebAssembly and sql.js.
 
 ## The experimental warning
 

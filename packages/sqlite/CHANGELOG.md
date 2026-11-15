@@ -1,5 +1,21 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.3
+
+This version adds the parts that the SQLite stores of other packages keep as local copies. The change is backward compatible.
+
+- `openDatabase` takes `readOnly`: the connection reads an existing file and does not change it. The option `wal` also takes `"when-writable"`: a file that the process cannot write keeps its journal mode. The type `WalMode` is new.
+- `transaction` takes `commit: false`: a dry run. The function rolls back after the work and gives the result of the work. This also applies to a savepoint.
+- `checkpoint` runs `PRAGMA wal_checkpoint` and gives its counts. The types `CheckpointMode`, `Checkpointed` and `CheckpointDatabase` are new.
+- `clearDatabase` drops each view and each table, and sets `user_version` to 0, for a cache that makes its tables again. The type `ClearOptions` is new.
+- `sqlJsConnection` gives a `SqlConnection` over a database of sql.js. The types `SqlJsDatabase`, `SqlJsStatement`, `SqlJsValue` and `SqlJsConnection` are structural, so the package has no new dependency.
+- Both entries export the new functions and types. `WalMode` is only in the main entry.
+- `openDatabase` and `salvageEventLog` use the class `Database` of `node:sqlite` when it is there. Node.js 26.11 renamed `DatabaseSync` to `Database`, and the old name gives a deprecation warning (DEP0210).
+- A Node.js before 22.16 has no `isTransaction`. Then `openDatabase` adds it to the connection as a probe: a `BEGIN`, which SQLite refuses in a transaction. `sqlJsConnection` uses the same probe. The `engines` field does not change.
+- One suite of tests runs the portable entry on `node:sqlite`, SQLite in WebAssembly and sql.js.
+
+Runtime dependencies: none.
+
 ## 0.3.2
 
 This version adds the read transaction. The change is backward compatible.

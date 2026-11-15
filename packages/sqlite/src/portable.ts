@@ -1,7 +1,8 @@
 /**
- * The part of the package that operates on each connection with the type `SqlConnection`: the migrations, the projections,
- * the write transaction and the event log. This entry imports no module of Node.js. Thus it operates in a browser too,
- * for example on SQLite in WebAssembly through a small adapter.
+ * This entry has the part of the package that operates on each connection with the type `SqlConnection`. The part is
+ * the migrations, the projections, the transactions, the checkpoint, the clear and the event log. This entry imports no
+ * module of Node.js. Thus it operates in a browser too, for example on sql.js or SQLite in WebAssembly through an adapter
+ * of the package.
  *
  * @packageDocumentation
  */
@@ -36,3 +37,6 @@ export {
 } from "./event-log.ts";
 export { SchemaError, type Parse, type StandardIssue, type StandardResult, type StandardSchema } from "./schema.ts";
 export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";
+export { checkpoint, type CheckpointDatabase, type CheckpointMode, type Checkpointed } from "./checkpoint.ts";
+export { clearDatabase, type ClearOptions } from "./clear.ts";
+export { sqlJsConnection, type SqlJsConnection, type SqlJsDatabase, type SqlJsStatement, type SqlJsValue } from "./sqljs.ts";

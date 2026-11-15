@@ -202,6 +202,13 @@ describe("transaction with nested: savepoint", () => {
     expect(() => transaction(db, () => 1, { nested: "join" as never })).toThrow(RangeError);
   });
 
+  it("refuses a value of commit that is not a boolean, before the work", () => {
+    let ran = false;
+    expect(() => transaction(db, () => (ran = true), { commit: "no" as never })).toThrow(TypeError);
+    expect(ran).toBe(false);
+    expect(db.isTransaction).toBe(false);
+  });
+
   it("gives a failed rollback of a savepoint to onRollbackError", () => {
     const statements: string[] = [];
     const fake: TransactionDatabase = {

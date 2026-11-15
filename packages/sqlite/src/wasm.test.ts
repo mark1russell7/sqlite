@@ -1,23 +1,8 @@
 // The adapter of SQLite in WebAssembly, on the real driver: the members of a connection, and each part of the portable entry.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import fc from "fast-check";
 import { beforeAll, describe, expect, it } from "vitest";
-import {
-  eventLog,
-  ensureProjection,
-  migrate,
-  readTransaction,
-  schemaVersion,
-  tableColumns,
-  addMissingColumns,
-  transaction,
-  userVersion,
-  wasmConnection,
-  type LogRecord,
-  type WasmConnection,
-  type WasmDatabase,
-  type WasmModule,
-} from "./portable.ts";
+import { describePortable } from "./conformance.ts";
+import { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule } from "./portable.ts";
 
 type Sqlite3 = Awaited<ReturnType<typeof sqlite3InitModule>>;
 
@@ -41,14 +26,6 @@ function withDb<T>(work: (db: WasmConnection) => T): T {
     db.close();
   }
 }
-
-interface Fact extends LogRecord {
-  readonly value: number;
-}
-
-const parse = (value: unknown): Fact => value as Fact;
-const fact = (id: number, value = id * 7): Fact => ({ id: `e${String(id)}`, at: "2026-11-15T00:00:00Z", type: id % 2 === 0 ? "report" : "ack", value });
-const facts = fc.array(fc.integer({ min: 0, max: 12 }).map((id) => fact(id)), { maxLength: 30 });
 
 describe("the members of a connection", () => {
   it("gives the first row, each row, and undefined when there is no row", () => {
@@ -143,108 +120,4 @@ describe("the members of a connection", () => {
   });
 });
 
-describe("the portable entry on SQLite in WebAssembly", () => {
-  it("migrates by user_version and by part, and adds the missing columns", () => {
-    withDb((db) => {
-      expect(migrate(db, ["CREATE TABLE app (x INTEGER)", (d) => d.prepare("INSERT INTO app VALUES (?)").run(1)])).toEqual({ from: 0, to: 2 });
-      expect(migrate(db, ["CREATE TABLE app (x INTEGER)", "SELECT 1"])).toEqual({ from: 2, to: 2 });
-      expect(migrate(db, ["CREATE TABLE lib (y TEXT)"], { part: "lib" })).toEqual({ from: 0, to: 1 });
-      expect(userVersion(db)).toBe(2);
-      expect(schemaVersion(db, "lib")).toBe(1);
-      expect(addMissingColumns(db, "app", { z: "TEXT" })).toEqual(["z"]);
-      expect(tableColumns(db, "app")).toEqual(["x", "z"]);
-      expect(() => migrate(db, ["SELECT 1"])).toThrow(/schema version 2/);
-      expect(migrate(db, ["SELECT 1"], { newer: "keep" })).toEqual({ from: 2, to: 2 });
-    });
-  });
-
-  it("rolls back a step that fails, and keeps the steps before it", () => {
-    withDb((db) => {
-      expect(() => migrate(db, ["CREATE TABLE a (x)", "CREATE TABLE b (x); SELECT * FROM missing"])).toThrow(/missing/);
-      expect(userVersion(db)).toBe(1);
-      expect(tableColumns(db, "b")).toEqual([]);
-      expect(db.isTransaction).toBe(false);
-    });
-  });
-
-  it("rebuilds a projection at a new version", () => {
-    withDb((db) => {
-      const options = { part: "idx", tables: ["idx"] } as const;
-      expect(ensureProjection(db, "CREATE TABLE idx (k TEXT)", { ...options, version: 1 })).toEqual({ rebuilt: true, from: 0 });
-      db.prepare("INSERT INTO idx VALUES (?)").run("old");
-      expect(ensureProjection(db, "CREATE TABLE idx (k TEXT)", { ...options, version: 1 })).toEqual({ rebuilt: false, from: 1 });
-      expect(ensureProjection(db, "CREATE TABLE idx (k TEXT, n INTEGER)", { ...options, version: 2 })).toEqual({ rebuilt: true, from: 1 });
-      expect(db.prepare("SELECT count(*) AS n FROM idx").get()).toEqual({ n: 0 });
-      expect(tableColumns(db, "idx")).toEqual(["k", "n"]);
-    });
-  });
-
-  it("nests a transaction as a savepoint, and rolls back only the inner work", () => {
-    withDb((db) => {
-      db.exec("CREATE TABLE t (v TEXT)");
-      const insert = db.prepare("INSERT INTO t VALUES (?)");
-      transaction(db, () => {
-        insert.run("outer");
-        expect(() =>
-          transaction(
-            db,
-            () => {
-              insert.run("inner");
-              throw new Error("stop");
-            },
-            { nested: "savepoint" },
-          ),
-        ).toThrow("stop");
-      });
-      expect(db.prepare("SELECT v FROM t").all()).toEqual([{ v: "outer" }]);
-      expect(db.isTransaction).toBe(false);
-    });
-  });
-
-  it("reads in a read transaction, refuses a write there, and restores query_only", () => {
-    withDb((db) => {
-      db.exec("CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('a')");
-      expect(readTransaction(db, () => db.prepare("SELECT v FROM t").all())).toEqual([{ v: "a" }]);
-      expect(() => readTransaction(db, () => db.prepare("INSERT INTO t VALUES (?)").run("b"))).toThrow(/readonly/i);
-      expect(db.isTransaction).toBe(false);
-      expect(db.prepare("PRAGMA query_only").get()).toEqual({ query_only: 0 });
-      db.prepare("INSERT INTO t VALUES (?)").run("c");
-      expect(db.prepare("SELECT count(*) AS n FROM t").get()).toEqual({ n: 2 });
-    });
-  });
-
-  it("keeps a log: added, duplicate, conflict and refused", () => {
-    withDb((db) => {
-      const log = eventLog(db, { parse });
-      expect(log.append(fact(1))).toEqual({ kind: "added", seq: 1 });
-      expect(log.append(fact(1))).toEqual({ kind: "duplicate", seq: 1 });
-      expect(log.append(fact(1, 0))).toEqual({ kind: "conflict", seq: 1, stored: fact(1) });
-      expect(log.append(fact(2), () => "no")).toEqual({ kind: "refused", problem: "no" });
-      expect(log.appendAll([fact(2), fact(3), fact(2)]).map((result) => result.kind)).toEqual(["added", "added", "duplicate"]);
-      expect([...log.read({ after: 1, types: ["report"] })]).toEqual([fact(2)]);
-      expect([...log.entries({ limit: 1 })]).toEqual([{ seq: 1, event: fact(1) }]);
-      expect(log.get("e3")).toEqual({ seq: 3, event: fact(3) });
-      expect(log.head()).toBe(3);
-      expect(log.count()).toBe(3);
-    });
-  });
-
-  it("follows the join laws of a grow-only set", () => {
-    /** This function gives the set of the events that the batches leave in a new log. */
-    const setOf = (...batches: readonly (readonly Fact[])[]): string[] =>
-      withDb((db) => {
-        const log = eventLog(db, { parse });
-        for (const batch of batches) log.appendAll(batch);
-        return [...log.read()].map((event) => JSON.stringify(event)).sort();
-      });
-    fc.assert(
-      fc.property(facts, facts, facts, (a, b, c) => {
-        expect(setOf(a, a)).toEqual(setOf(a));
-        expect(setOf(a, b)).toEqual(setOf(b, a));
-        expect(setOf(a, b, c)).toEqual(setOf(c, b, a));
-        expect(setOf(a, b, c)).toEqual([...new Set([...a, ...b, ...c].map((event) => JSON.stringify(event)))].sort());
-      }),
-      { numRuns: 40 },
-    );
-  });
-});
+describePortable("SQLite in WebAssembly", open);

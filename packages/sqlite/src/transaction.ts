@@ -27,6 +27,11 @@ export interface TransactionOptions {
    * - `savepoint`: the work is a savepoint of the transaction in progress. An error rolls back only the writes of the work.
    */
   readonly nested?: Nested | undefined;
+  /**
+   * This value tells if the work commits. The default is true. With false, the transaction rolls back after the work
+   * and gives the result of the work: a dry run. The work sees its writes, and the file does not keep them.
+   */
+  readonly commit?: boolean | undefined;
 }
 
 /** What a transaction does in a transaction in progress: refuse it, or use a savepoint. */
@@ -54,9 +59,11 @@ function isThenable(value: unknown): boolean {
  * transaction in progress. An error of the work rolls back only those writes, and the function throws the error. The
  * transaction in progress continues.
  *
+ * With `commit: false`, the function rolls back after the work and gives the result of the work: a dry run.
+ *
  * @param db - The connection.
  * @param work - The work. Its writes are part of the transaction.
- * @param options - The function that gets a failed rollback, and the behavior in a transaction in progress.
+ * @param options - The function that gets a failed rollback, the behavior in a transaction in progress, and the dry run.
  */
 export function transaction<T>(db: TransactionDatabase, work: () => T, options: TransactionOptions = {}): T {
   return run(db, "BEGIN IMMEDIATE", work, options);
@@ -101,14 +108,16 @@ export function readTransaction<T>(db: ReadTransactionDatabase, work: () => T, o
 function run<T>(db: TransactionDatabase, begin: string, work: () => T, options: TransactionOptions): T {
   const nested = options.nested ?? "refuse";
   if (!NESTED.includes(nested)) throw new RangeError(`The value of nested must be one of ${NESTED.join(", ")}, not ${String(nested)}.`);
-  if (nested === "savepoint" && db.isTransaction) return savepoint(db, work, options);
+  const commit = options.commit ?? true;
+  if (typeof commit !== "boolean") throw new TypeError(`The value of commit must be true or false, not ${String(commit)}.`);
+  if (nested === "savepoint" && db.isTransaction) return savepoint(db, work, commit, options);
   db.exec(begin);
   try {
     const result = work();
     if (isThenable(result)) {
       throw new TypeError("The work of a transaction must be synchronous. The transaction rolled back.");
     }
-    db.exec("COMMIT");
+    db.exec(commit ? "COMMIT" : "ROLLBACK");
     return result;
   } catch (error) {
     try {
@@ -121,7 +130,7 @@ function run<T>(db: TransactionDatabase, begin: string, work: () => T, options: 
 }
 
 /** This function does the work in a savepoint of the transaction in progress. */
-function savepoint<T>(db: TransactionDatabase, work: () => T, options: TransactionOptions): T {
+function savepoint<T>(db: TransactionDatabase, work: () => T, commit: boolean, options: TransactionOptions): T {
   const name = `"sqlite_savepoint_${String(nextSavepoint++)}"`;
   db.exec(`SAVEPOINT ${name}`);
   try {
@@ -130,6 +139,7 @@ function savepoint<T>(db: TransactionDatabase, work: () => T, options: Transacti
       throw new TypeError("The work of a transaction must be synchronous. The savepoint rolled back.");
     }
     if (!db.isTransaction) throw new Error("The work ended the transaction in progress, so its savepoint is gone.");
+    if (!commit) db.exec(`ROLLBACK TO ${name}`);
     db.exec(`RELEASE ${name}`);
     return result;
   } catch (error) {
