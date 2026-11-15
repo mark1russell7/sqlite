@@ -4,9 +4,8 @@
  *
  * @packageDocumentation
  */
-import type { DatabaseSync } from "node:sqlite";
-import { openDatabase, type OpenOptions } from "./database.ts";
-import { migrate, SCHEMA_VERSIONS_TABLE, type Migration } from "./migrate.ts";
+import type { SqlConnection } from "./connection.ts";
+import { migrate, SCHEMA_VERSIONS_TABLE } from "./migrate.ts";
 import { transaction, type Nested } from "./transaction.ts";
 
 /** The fields that the log reads from each event. The log keeps the full event as JSON. */
@@ -81,12 +80,6 @@ export interface EventLog<E extends LogRecord> {
   recover(): void;
 }
 
-/** A log that owns its connection: `openEventLog` gives it. */
-export interface EventLogFile<E extends LogRecord> extends EventLog<E> {
-  /** This function closes the connection of the log. */
-  close(): void;
-}
-
 /** The error of a call to a broken log. `stuck` is true when the rollback of the failed write did not end. */
 export class BrokenLogError extends Error {
   override readonly name = "BrokenLogError";
@@ -113,14 +106,8 @@ export interface EventLogOptions<E> {
   readonly nested?: Nested | undefined;
 }
 
-/** The options of `openEventLog`: the options of the connection, and the equality of events. */
-export interface EventLogFileOptions<E> extends OpenOptions {
-  /** This function tells if a new event is equal to the stored event with its id. The default compares the JSON text. */
-  readonly equal?: Equal<E> | undefined;
-}
-
 /** The steps of the schema of a log in a table. Do not change a step: add a new step. */
-function logSteps(table: string): readonly Migration[] {
+export function logSteps(table: string): readonly string[] {
   return [
     `CREATE TABLE ${table} (
        seq INTEGER PRIMARY KEY,
@@ -137,7 +124,7 @@ function logSteps(table: string): readonly Migration[] {
 export const EVENT_LOG_SCHEMA_VERSION: number = logSteps("events").length;
 
 /** The default name of the table of a log. */
-const DEFAULT_TABLE = "events";
+export const DEFAULT_TABLE = "events";
 
 /** This function throws when a name cannot be the table of a log. The salvage of a log uses it too. */
 export function checkTable(table: string): void {
@@ -166,42 +153,15 @@ function checkWhole(what: string, value: number, lowest: number): void {
  * @param db - The connection. Set its pragmas with `openDatabase`.
  * @param options - The parse of the events, the table, the equality of events and the behavior in a transaction of the caller.
  */
-export function eventLog<E extends LogRecord>(db: DatabaseSync, options: EventLogOptions<E>): EventLog<E> {
+export function eventLog<E extends LogRecord>(db: SqlConnection, options: EventLogOptions<E>): EventLog<E> {
   const table = options.table ?? DEFAULT_TABLE;
   checkTable(table);
   migrate(db, logSteps(table), { part: `event-log:${table}`, name: `log ${table}` });
   return attach(db, table, options.parse, options.equal, options.nested ?? "refuse");
 }
 
-/**
- * This function opens a log in its own file, and makes the file when it is not there. `:memory:` gives a log with no file.
- *
- * The log owns the connection and the `user_version` of its file, and its table is `events`. A file of a newer schema
- * version gives an error. The rules of `eventLog` apply.
- *
- * @param path - The path of the file, or `:memory:`.
- * @param parse - The function that changes a stored JSON value into an event. It throws on a value that is not an event.
- * @param options - The pragmas of the connection, and the equality of events. The defaults are the defaults of `openDatabase`.
- */
-export function openEventLog<E extends LogRecord>(path: string, parse: (value: unknown) => E, options: EventLogFileOptions<E> = {}): EventLogFile<E> {
-  const db = openDatabase(path, options);
-  try {
-    migrate(db, logSteps(DEFAULT_TABLE), { name: "log" });
-    const log = attach(db, DEFAULT_TABLE, parse, options.equal, "refuse");
-    return {
-      ...log,
-      close() {
-        db.close();
-      },
-    };
-  } catch (error) {
-    db.close();
-    throw error;
-  }
-}
-
-/** This function makes the log object on a table with a current schema. */
-function attach<E extends LogRecord>(db: DatabaseSync, table: string, parse: (value: unknown) => E, equal: Equal<E> | undefined, nested: Nested): EventLog<E> {
+/** This function makes the log object on a table with a current schema. `openEventLog` uses it too. */
+export function attach<E extends LogRecord>(db: SqlConnection, table: string, parse: (value: unknown) => E, equal: Equal<E> | undefined, nested: Nested): EventLog<E> {
   const insert = db.prepare(`INSERT INTO ${table} (id, at, type, body) VALUES (?, ?, ?, ?)`);
   const byId = db.prepare(`SELECT seq, body FROM ${table} WHERE id = ?`);
   const readSql = `SELECT seq, body FROM ${table} WHERE seq > ? AND (? IS NULL OR type IN (SELECT value FROM json_each(?))) ORDER BY seq LIMIT ?`;

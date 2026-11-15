@@ -2,8 +2,9 @@ import { defineConfig } from "tsdown";
 
 // The build for npm: ES modules in build/, with types. The workspace runs the source (main is src/index.ts).
 // The entry ./warning does not import node:sqlite, so a command can load it before node:sqlite.
+// The entry ./portable imports no module of Node.js, so it operates in a browser too.
 export default defineConfig({
-  entry: ["src/index.ts", "src/warning.ts"],
+  entry: ["src/index.ts", "src/warning.ts", "src/portable.ts"],
   outDir: "build",
   format: "esm",
   platform: "node",

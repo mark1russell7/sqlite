@@ -1,10 +1,13 @@
 /**
  * Databases on one computer through `node:sqlite`: the connection with its pragmas, the migrations by schema version and
- * the write transaction. The package also has a typed append-only event log, the faults of SQLite and the recovery of a broken file. The entry
- * `@mark1russell7/sqlite/warning` has the filter of the experimental warning.
+ * the write transaction. The package also has a typed append-only event log, the faults of SQLite and the recovery of a
+ * broken file. The entry `@mark1russell7/sqlite/warning` has the filter of the experimental warning. The entry
+ * `@mark1russell7/sqlite/portable` has the parts that operate on each connection with the type `SqlConnection`, also in a
+ * browser.
  *
  * @packageDocumentation
  */
+export type { SqlChanges, SqlConnection, SqlStatement, SqlValue } from "./connection.ts";
 export { openDatabase, type OpenOptions, type Synchronous } from "./database.ts";
 export {
   addMissingColumns,
@@ -25,18 +28,16 @@ export {
   BrokenLogError,
   EVENT_LOG_SCHEMA_VERSION,
   eventLog,
-  openEventLog,
   type Accept,
   type Appended,
   type Equal,
   type EventLog,
-  type EventLogFile,
-  type EventLogFileOptions,
   type EventLogOptions,
   type LogEntry,
   type LogRecord,
   type ReadOptions,
 } from "./event-log.ts";
+export { openEventLog, type EventLogFile, type EventLogFileOptions } from "./event-log-file.ts";
 export {
   checkIntegrity,
   IntegrityError,

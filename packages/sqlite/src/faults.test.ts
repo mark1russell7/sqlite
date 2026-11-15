@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openEventLog, type LogRecord } from "./event-log.ts";
+import type { LogRecord } from "./event-log.ts";
+import { openEventLog } from "./event-log-file.ts";
 import { sqliteFault } from "./faults.ts";
 
 let folder: string;

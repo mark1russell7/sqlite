@@ -13,8 +13,8 @@ type ColumnDefinitions: build/migrate.d.ts#ColumnDefinitions
 EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
 type Equal: build/event-log.d.ts#Equal
 type EventLog: build/event-log.d.ts#EventLog
-type EventLogFile: build/event-log.d.ts#EventLogFile
-type EventLogFileOptions: build/event-log.d.ts#EventLogFileOptions
+type EventLogFile: build/event-log-file.d.ts#EventLogFile
+type EventLogFileOptions: build/event-log-file.d.ts#EventLogFileOptions
 type EventLogOptions: build/event-log.d.ts#EventLogOptions
 type Integrity: build/recovery.d.ts#Integrity
 IntegrityError: build/recovery.d.ts#IntegrityError
@@ -38,6 +38,10 @@ SQLITE_FAULT_ACTIONS: build/faults.d.ts#SQLITE_FAULT_ACTIONS
 type SalvageOptions: build/recovery.d.ts#SalvageOptions
 type Salvaged: build/recovery.d.ts#Salvaged
 type Snapshot: build/recovery.d.ts#Snapshot
+type SqlChanges: build/connection.d.ts#SqlChanges
+type SqlConnection: build/connection.d.ts#SqlConnection
+type SqlStatement: build/connection.d.ts#SqlStatement
+type SqlValue: build/connection.d.ts#SqlValue
 type SqliteFault: build/faults.d.ts#SqliteFault
 type SqliteFaultAction: build/faults.d.ts#SqliteFaultAction
 type SqliteFaultKind: build/faults.d.ts#SqliteFaultKind
@@ -50,7 +54,7 @@ ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
 openDatabase: build/database.d.ts#openDatabase
-openEventLog: build/event-log.d.ts#openEventLog
+openEventLog: build/event-log-file.d.ts#openEventLog
 openOrQuarantine: build/recovery.d.ts#openOrQuarantine
 quarantine: build/recovery.d.ts#quarantine
 salvageEventLog: build/recovery.d.ts#salvageEventLog
@@ -68,7 +72,67 @@ WarningTarget: build/warning.d.ts#WarningTarget
 isSqliteWarning: build/warning.d.ts#isSqliteWarning
 quietSqliteWarning: build/warning.d.ts#quietSqliteWarning
 
+## ./portable (build/portable.d.ts): names
+
+type Accept: build/event-log.d.ts#Accept
+type Appended: build/event-log.d.ts#Appended
+BrokenLogError: build/event-log.d.ts#BrokenLogError
+type ColumnDefinitions: build/migrate.d.ts#ColumnDefinitions
+EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
+type Equal: build/event-log.d.ts#Equal
+type EventLog: build/event-log.d.ts#EventLog
+type EventLogOptions: build/event-log.d.ts#EventLogOptions
+type LogEntry: build/event-log.d.ts#LogEntry
+type LogRecord: build/event-log.d.ts#LogRecord
+type MigrateOptions: build/migrate.d.ts#MigrateOptions
+type Migrated: build/migrate.d.ts#Migrated
+type Migration: build/migrate.d.ts#Migration
+type Nested: build/transaction.d.ts#Nested
+type Newer: build/migrate.d.ts#Newer
+type Projected: build/projection.d.ts#Projected
+type ProjectionOptions: build/projection.d.ts#ProjectionOptions
+type ReadOptions: build/event-log.d.ts#ReadOptions
+SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
+type SqlChanges: build/connection.d.ts#SqlChanges
+type SqlConnection: build/connection.d.ts#SqlConnection
+type SqlStatement: build/connection.d.ts#SqlStatement
+type SqlValue: build/connection.d.ts#SqlValue
+type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
+type TransactionOptions: build/transaction.d.ts#TransactionOptions
+addMissingColumns: build/migrate.d.ts#addMissingColumns
+ensureProjection: build/projection.d.ts#ensureProjection
+eventLog: build/event-log.d.ts#eventLog
+migrate: build/migrate.d.ts#migrate
+schemaVersion: build/migrate.d.ts#schemaVersion
+tableColumns: build/migrate.d.ts#tableColumns
+transaction: build/transaction.d.ts#transaction
+userVersion: build/migrate.d.ts#userVersion
+
 ## Declarations
+
+### build/connection.d.ts#SqlChanges
+export interface SqlChanges {
+  readonly changes: number | bigint;
+  readonly lastInsertRowid: number | bigint;
+}
+
+### build/connection.d.ts#SqlConnection
+export interface SqlConnection {
+  exec(sql: string): void;
+  prepare(sql: string): SqlStatement;
+  readonly isTransaction: boolean;
+}
+
+### build/connection.d.ts#SqlStatement
+export interface SqlStatement {
+  get(...parameters: SqlValue[]): unknown;
+  all(...parameters: SqlValue[]): unknown[];
+  run(...parameters: SqlValue[]): SqlChanges;
+  iterate(...parameters: SqlValue[]): Iterable<unknown>;
+}
+
+### build/connection.d.ts#SqlValue
+export type SqlValue = null | number | bigint | string | Uint8Array;
 
 ### build/database.d.ts#OpenOptions
 export interface OpenOptions {
@@ -84,6 +148,19 @@ export type Synchronous = "OFF" | "NORMAL" | "FULL" | "EXTRA";
 
 ### build/database.d.ts#openDatabase
 export declare function openDatabase(path: string, options?: OpenOptions): DatabaseSync;
+
+### build/event-log-file.d.ts#EventLogFile
+export interface EventLogFile<E extends LogRecord> extends EventLog<E> {
+  close(): void;
+}
+
+### build/event-log-file.d.ts#EventLogFileOptions
+export interface EventLogFileOptions<E> extends OpenOptions {
+  readonly equal?: Equal<E> | undefined;
+}
+
+### build/event-log-file.d.ts#openEventLog
+export declare function openEventLog<E extends LogRecord>(path: string, parse: (value: unknown) => E, options?: EventLogFileOptions<E>): EventLogFile<E>;
 
 ### build/event-log.d.ts#Accept
 export type Accept<E, P> = (event: E) => P | undefined;
@@ -129,16 +206,6 @@ export interface EventLog<E extends LogRecord> {
   recover(): void;
 }
 
-### build/event-log.d.ts#EventLogFile
-export interface EventLogFile<E extends LogRecord> extends EventLog<E> {
-  close(): void;
-}
-
-### build/event-log.d.ts#EventLogFileOptions
-export interface EventLogFileOptions<E> extends OpenOptions {
-  readonly equal?: Equal<E> | undefined;
-}
-
 ### build/event-log.d.ts#EventLogOptions
 export interface EventLogOptions<E> {
   readonly parse: (value: unknown) => E;
@@ -168,10 +235,7 @@ export interface ReadOptions {
 }
 
 ### build/event-log.d.ts#eventLog
-export declare function eventLog<E extends LogRecord>(db: DatabaseSync, options: EventLogOptions<E>): EventLog<E>;
-
-### build/event-log.d.ts#openEventLog
-export declare function openEventLog<E extends LogRecord>(path: string, parse: (value: unknown) => E, options?: EventLogFileOptions<E>): EventLogFile<E>;
+export declare function eventLog<E extends LogRecord>(db: SqlConnection, options: EventLogOptions<E>): EventLog<E>;
 
 ### build/faults.d.ts#SQLITE_FAULT_ACTIONS
 export declare const SQLITE_FAULT_ACTIONS: Readonly<Record<SqliteFaultKind, SqliteFaultAction>>;
@@ -212,7 +276,7 @@ export interface Migrated {
 }
 
 ### build/migrate.d.ts#Migration
-export type Migration = string | ((db: DatabaseSync) => void);
+export type Migration<D extends SqlConnection = DatabaseSync> = string | ((db: D) => void);
 
 ### build/migrate.d.ts#Newer
 export type Newer = "throw" | "keep";
@@ -221,19 +285,19 @@ export type Newer = "throw" | "keep";
 export declare const SCHEMA_VERSIONS_TABLE = "schema_versions";
 
 ### build/migrate.d.ts#addMissingColumns
-export declare function addMissingColumns(db: DatabaseSync, table: string, columns: ColumnDefinitions): string[];
+export declare function addMissingColumns(db: SqlConnection, table: string, columns: ColumnDefinitions): string[];
 
 ### build/migrate.d.ts#migrate
-export declare function migrate(db: DatabaseSync, migrations: readonly Migration[], options?: MigrateOptions): Migrated;
+export declare function migrate<D extends SqlConnection>(db: D, migrations: readonly Migration<D>[], options?: MigrateOptions): Migrated;
 
 ### build/migrate.d.ts#schemaVersion
-export declare function schemaVersion(db: DatabaseSync, part?: string): number;
+export declare function schemaVersion(db: SqlConnection, part?: string): number;
 
 ### build/migrate.d.ts#tableColumns
-export declare function tableColumns(db: DatabaseSync, table: string): string[];
+export declare function tableColumns(db: SqlConnection, table: string): string[];
 
 ### build/migrate.d.ts#userVersion
-export declare function userVersion(db: DatabaseSync): number;
+export declare function userVersion(db: SqlConnection): number;
 
 ### build/projection.d.ts#Projected
 export interface Projected {
@@ -242,15 +306,15 @@ export interface Projected {
 }
 
 ### build/projection.d.ts#ProjectionOptions
-export interface ProjectionOptions {
+export interface ProjectionOptions<D extends SqlConnection = DatabaseSync> {
   readonly version: number;
   readonly part?: string | undefined;
   readonly tables?: readonly string[] | undefined;
-  readonly check?: ((db: DatabaseSync) => boolean) | undefined;
+  readonly check?: ((db: D) => boolean) | undefined;
 }
 
 ### build/projection.d.ts#ensureProjection
-export declare function ensureProjection(db: DatabaseSync, schema: Migration, options: ProjectionOptions): Projected;
+export declare function ensureProjection<D extends SqlConnection>(db: D, schema: Migration<D>, options: ProjectionOptions<D>): Projected;
 
 ### build/recovery.d.ts#Integrity
 export interface Integrity {
@@ -335,7 +399,7 @@ export declare function snapshot(db: DatabaseSync, path: string): Snapshot;
 export type Nested = "refuse" | "savepoint";
 
 ### build/transaction.d.ts#TransactionDatabase
-export type TransactionDatabase = Pick<DatabaseSync, "exec" | "isTransaction">;
+export type TransactionDatabase = Pick<SqlConnection, "exec" | "isTransaction">;
 
 ### build/transaction.d.ts#TransactionOptions
 export interface TransactionOptions {

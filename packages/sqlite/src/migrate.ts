@@ -5,13 +5,14 @@
  * @packageDocumentation
  */
 import type { DatabaseSync } from "node:sqlite";
+import type { SqlConnection } from "./connection.ts";
 import { transaction } from "./transaction.ts";
 
 /**
  * One step of a schema: SQL statements, or a function that changes the database. A step operates in the transaction of
- * its migration, so it does not start a transaction.
+ * its migration, so it does not start a transaction. `D` is the type of the connection. The default is `DatabaseSync`.
  */
-export type Migration = string | ((db: DatabaseSync) => void);
+export type Migration<D extends SqlConnection = DatabaseSync> = string | ((db: D) => void);
 
 /** The table that keeps the version of each named part of a file. `migrate` makes it at the first step of a part. */
 export const SCHEMA_VERSIONS_TABLE = "schema_versions";
@@ -51,7 +52,7 @@ export interface Migrated {
 }
 
 /** This function gives the pragma `user_version` of a database. */
-export function userVersion(db: DatabaseSync): number {
+export function userVersion(db: SqlConnection): number {
   const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
   return row.user_version;
 }
@@ -68,7 +69,7 @@ function checkPart(part: string | undefined): void {
  * @param db - The connection.
  * @param part - The name of a part of the file.
  */
-export function schemaVersion(db: DatabaseSync, part?: string): number {
+export function schemaVersion(db: SqlConnection, part?: string): number {
   checkPart(part);
   if (part === undefined) return userVersion(db);
   const table = db.prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = ?").get(SCHEMA_VERSIONS_TABLE);
@@ -78,7 +79,7 @@ export function schemaVersion(db: DatabaseSync, part?: string): number {
 }
 
 /** This function writes the schema version of a database, or of a part of it. It operates in a transaction. */
-export function setSchemaVersion(db: DatabaseSync, part: string | undefined, version: number): void {
+export function setSchemaVersion(db: SqlConnection, part: string | undefined, version: number): void {
   if (part === undefined) {
     db.exec(`PRAGMA user_version = ${String(version)}`);
     return;
@@ -103,7 +104,7 @@ export function setSchemaVersion(db: DatabaseSync, part: string | undefined, ver
  * @param migrations - The steps of the schema. Do not change a step that a file can have: add a new step.
  * @param options - The part of the file, the name of the database in the errors, and the behavior with a newer file.
  */
-export function migrate(db: DatabaseSync, migrations: readonly Migration[], options: MigrateOptions = {}): Migrated {
+export function migrate<D extends SqlConnection>(db: D, migrations: readonly Migration<D>[], options: MigrateOptions = {}): Migrated {
   const part = options.part;
   checkPart(part);
   const name = options.name ?? (part === undefined ? "database" : `part ${part}`);
@@ -123,7 +124,7 @@ export function migrate(db: DatabaseSync, migrations: readonly Migration[], opti
     version = transaction(db, () => {
       const current = schemaVersion(db, part);
       if (isNewer(current) || current === known) return current;
-      const step = migrations[current] as Migration;
+      const step = migrations[current] as Migration<D>;
       if (typeof step === "string") db.exec(step);
       else step(db);
       setSchemaVersion(db, part, current + 1);
@@ -155,7 +156,7 @@ function checkIdentifier(what: string, name: string): void {
  * @param db - The connection.
  * @param table - The name of the table.
  */
-export function tableColumns(db: DatabaseSync, table: string): string[] {
+export function tableColumns(db: SqlConnection, table: string): string[] {
   checkIdentifier("The name of a table", table);
   return (db.prepare("SELECT name FROM pragma_table_info(?)").all(table) as { name: string }[]).map((row) => row.name);
 }
@@ -174,7 +175,7 @@ export function tableColumns(db: DatabaseSync, table: string): string[] {
  * @param table - The name of the table. The table must exist.
  * @param columns - The columns that the table must have.
  */
-export function addMissingColumns(db: DatabaseSync, table: string, columns: ColumnDefinitions): string[] {
+export function addMissingColumns(db: SqlConnection, table: string, columns: ColumnDefinitions): string[] {
   const names = Object.keys(columns);
   for (const name of names) checkIdentifier("The name of a column", name);
   const present = new Set(tableColumns(db, table).map((name) => name.toLowerCase()));

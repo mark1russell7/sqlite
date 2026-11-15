@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "./database.ts";
-import { eventLog, openEventLog, type EventLog, type LogRecord } from "./event-log.ts";
+import { eventLog, type EventLog, type LogRecord } from "./event-log.ts";
+import { openEventLog } from "./event-log-file.ts";
 import { sqliteFault } from "./faults.ts";
 import { checkIntegrity, IntegrityError, openOrQuarantine, quarantine, salvageEventLog, snapshot } from "./recovery.ts";
 

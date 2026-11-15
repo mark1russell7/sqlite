@@ -2,6 +2,8 @@
 
 Databases on one computer through `node:sqlite`. The package has the connection with its pragmas, the migrations by schema version and the write transaction. It also has a typed append-only event log, the faults of SQLite and the recovery of a broken file. It has no dependencies.
 
+The entry `@mark1russell7/sqlite/portable` operates on other drivers of SQLite too, also in a browser.
+
 ```sh
 npm install @mark1russell7/sqlite
 ```
@@ -271,6 +273,28 @@ if (quarantined?.database !== undefined) {
 - `open` must close its connection when it throws. Each other error goes to the caller.
 - `salvageEventLog` opens the broken file read-only. After a broken page, it reads each later position alone, and counts the lost positions.
 - `snapshot` does not stop the writers. Use it for a backup or for a copy to a different computer.
+
+## The portable entry
+
+The entry `@mark1russell7/sqlite/portable` has the migrations, the projections, the write transaction and the event log. It imports no module of Node.js. Thus it operates in a browser too.
+
+These functions take a `SqlConnection`: the part of a connection that the package uses. It has `exec`, `prepare` and `isTransaction`. Its statements have `get`, `all`, `run` and `iterate`. `DatabaseSync` of `node:sqlite` has these members. For a different driver, write a small adapter.
+
+```ts
+import { eventLog, migrate, type SqlConnection } from "@mark1russell7/sqlite/portable";
+
+const db: SqlConnection = adapter(driver);
+migrate(db, steps);
+const log = eventLog(db, { parse });
+```
+
+- An adapter gives each row as an object with one field for each column. `get` gives `undefined` when the result has no rows.
+- `run` gives a `SqlChanges`: the number of changed rows and the id of the last added row.
+- `isTransaction` is true from `BEGIN` to the end of the transaction. A driver without it can use `sqlite3_get_autocommit`, which gives 0 in a transaction.
+- `Migration<D>` and `ProjectionOptions<D>` take the type of the connection. Thus each step gets the full connection of the driver. The default is `DatabaseSync`.
+- `openEventLog`, the faults and the recovery stay in the main entry, because they need Node.js.
+- The types name `DatabaseSync` as a default. An app without `@types/node` needs `skipLibCheck` in its `tsconfig.json`.
+- A test of the package follows each import of the entry. It fails when the JavaScript of the entry gets to a module out of the package.
 
 ## The experimental warning
 

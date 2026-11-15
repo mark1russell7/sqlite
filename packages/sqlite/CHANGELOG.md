@@ -1,5 +1,17 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.2.6
+
+This version adds the entry `@mark1russell7/sqlite/portable`. The change is backward compatible.
+
+- The new entry has the migrations, the projections, the write transaction and the event log. It imports no module of Node.js, so it operates in a browser too.
+- The types `SqlConnection`, `SqlStatement`, `SqlValue` and `SqlChanges` are new. They are the part of a connection that the package uses.
+- `migrate`, `schemaVersion`, `userVersion`, `tableColumns`, `addMissingColumns`, `ensureProjection`, `eventLog` and `transaction` take a `SqlConnection`. `DatabaseSync` has its members, so each earlier call stays correct.
+- `Migration` and `ProjectionOptions` take the type of the connection as a parameter. The default is `DatabaseSync`.
+- A test follows the imports of the new entry, and fails when its JavaScript gets to a module out of the package.
+
+Runtime dependencies: none.
+
 ## 0.2.5
 
 This version lets an older app work on a newer file. The change is backward compatible.
