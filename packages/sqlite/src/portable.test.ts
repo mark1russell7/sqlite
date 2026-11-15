@@ -78,7 +78,7 @@ const parse = (value: unknown): Note => value as Note;
 describe("the portable entry", () => {
   it("imports no module out of the package at run time", () => {
     expect(closure("portable.ts")).toEqual({
-      modules: ["checkpoint.ts", "clear.ts", "event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "schema.ts", "sqljs.ts", "transaction.ts", "wasm.ts"],
+      modules: ["checkpoint.ts", "clear.ts", "event-log.ts", "migrate.ts", "portable.ts", "probe.ts", "projection.ts", "schema.ts", "sqljs.ts", "transaction.ts", "wasm.ts"],
       external: [],
     });
   });
@@ -92,6 +92,7 @@ describe("the portable entry", () => {
         "event-log.ts",
         "migrate.ts",
         "portable.ts",
+        "probe.ts",
         "projection.ts",
         "schema.ts",
         "sqljs.ts",
