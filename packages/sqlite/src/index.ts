@@ -7,6 +7,11 @@
  *
  * @packageDocumentation
  */
+import type { DatabaseSync } from "node:sqlite";
+import type { SqlConnection } from "./connection.ts";
+import type { Migration as AnyMigration } from "./migrate.ts";
+import type { ProjectionOptions as AnyProjectionOptions } from "./projection.ts";
+
 export type { SqlChanges, SqlConnection, SqlStatement, SqlValue } from "./connection.ts";
 export { openDatabase, type OpenOptions, type Synchronous } from "./database.ts";
 export {
@@ -19,10 +24,9 @@ export {
   type ColumnDefinitions,
   type MigrateOptions,
   type Migrated,
-  type Migration,
   type Newer,
 } from "./migrate.ts";
-export { ensureProjection, type Projected, type ProjectionOptions } from "./projection.ts";
+export { ensureProjection, type Projected } from "./projection.ts";
 export { transaction, type Nested, type TransactionDatabase, type TransactionOptions } from "./transaction.ts";
 export {
   BrokenLogError,
@@ -38,6 +42,7 @@ export {
   type ReadOptions,
 } from "./event-log.ts";
 export { openEventLog, type EventLogFile, type EventLogFileOptions } from "./event-log-file.ts";
+export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";
 export {
   checkIntegrity,
   IntegrityError,
@@ -55,3 +60,12 @@ export {
   type Snapshot,
 } from "./recovery.ts";
 export { SQLITE_FAULT_ACTIONS, sqliteFault, type SqliteFault, type SqliteFaultAction, type SqliteFaultKind } from "./faults.ts";
+
+/**
+ * One step of a schema: SQL statements, or a function that changes the database. `D` is the type of the connection. In
+ * this entry, the default is `DatabaseSync`.
+ */
+export type Migration<D extends SqlConnection = DatabaseSync> = AnyMigration<D>;
+
+/** The options of `ensureProjection`. `D` is the type of the connection. In this entry, the default is `DatabaseSync`. */
+export type ProjectionOptions<D extends SqlConnection = DatabaseSync> = AnyProjectionOptions<D>;

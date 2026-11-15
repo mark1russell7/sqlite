@@ -5,13 +5,15 @@
  *
  * @packageDocumentation
  */
-import type { DatabaseSync } from "node:sqlite";
 import type { SqlConnection } from "./connection.ts";
 import { schemaVersion, setSchemaVersion, type Migration } from "./migrate.ts";
 import { transaction } from "./transaction.ts";
 
-/** The options of `ensureProjection`. `D` is the type of the connection. The default is `DatabaseSync`. */
-export interface ProjectionOptions<D extends SqlConnection = DatabaseSync> {
+/**
+ * The options of `ensureProjection`. `D` is the type of the connection. The default is `SqlConnection`, and the main entry
+ * sets the default `DatabaseSync`.
+ */
+export interface ProjectionOptions<D extends SqlConnection = SqlConnection> {
   /** This value is the schema version of the projection: a whole number of 1 or more. A change of the schema needs a new version. */
   readonly version: number;
   /**

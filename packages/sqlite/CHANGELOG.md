@@ -1,5 +1,16 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.0
+
+This version adds the adapter of SQLite in WebAssembly, and removes `node:sqlite` from the types of the entry `/portable`. The change of a default type breaks the entry `/portable`. The main entry does not change.
+
+- `wasmConnection` gives a `SqlConnection` over a database of `@sqlite.org/sqlite-wasm`. The types `WasmModule`, `WasmDatabase`, `WasmStatement` and `WasmConnection` are structural, so the package has no new dependency.
+- In the entry `/portable`, the default type of `Migration` and `ProjectionOptions` is `SqlConnection`, not `DatabaseSync`. Thus a browser app needs no `@types/node`. Give the type of the connection, for example `Migration<WasmConnection>`, when a step uses more members.
+- In the main entry, the default stays `DatabaseSync`.
+- The test of the entry `/portable` also follows each `import type`. A new test runs each part of the entry on the real driver of SQLite in WebAssembly.
+
+Runtime dependencies: none.
+
 ## 0.2.6
 
 This version adds the entry `@mark1russell7/sqlite/portable`. The change is backward compatible.

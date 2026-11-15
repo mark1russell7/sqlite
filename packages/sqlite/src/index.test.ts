@@ -25,6 +25,7 @@ describe("the entry", () => {
       "tableColumns",
       "transaction",
       "userVersion",
+      "wasmConnection",
     ]);
   });
 });
