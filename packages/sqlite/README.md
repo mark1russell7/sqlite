@@ -44,6 +44,7 @@ migrate(db, steps); // { from: 0, to: 2 }
 - Each step is one transaction with its new `user_version`. A step that fails rolls back alone.
 - The function reads the version again in each transaction, so two processes can migrate one file at the same time.
 - A file with more steps than the list is from a newer version of the app, and the function throws.
+- With `newer: "keep"`, the function does no step on a newer file and keeps its version. Use it only when each step adds tables or columns.
 - Do not change a step that a file can have. Add a new step.
 
 ### A version for each part of a file

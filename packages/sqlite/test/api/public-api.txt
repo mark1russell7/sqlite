@@ -25,6 +25,7 @@ type MigrateOptions: build/migrate.d.ts#MigrateOptions
 type Migrated: build/migrate.d.ts#Migrated
 type Migration: build/migrate.d.ts#Migration
 type Nested: build/transaction.d.ts#Nested
+type Newer: build/migrate.d.ts#Newer
 type OpenOptions: build/database.d.ts#OpenOptions
 type Projected: build/projection.d.ts#Projected
 type ProjectionOptions: build/projection.d.ts#ProjectionOptions
@@ -201,6 +202,7 @@ export type ColumnDefinitions = Readonly<Record<string, string>>;
 export interface MigrateOptions {
   readonly name?: string | undefined;
   readonly part?: string | undefined;
+  readonly newer?: Newer | undefined;
 }
 
 ### build/migrate.d.ts#Migrated
@@ -211,6 +213,9 @@ export interface Migrated {
 
 ### build/migrate.d.ts#Migration
 export type Migration = string | ((db: DatabaseSync) => void);
+
+### build/migrate.d.ts#Newer
+export type Newer = "throw" | "keep";
 
 ### build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
 export declare const SCHEMA_VERSIONS_TABLE = "schema_versions";

@@ -29,7 +29,20 @@ export interface MigrateOptions {
    * the version is the `user_version` of the file.
    */
   readonly part?: string | undefined;
+  /**
+   * This value tells what a file or a part of a newer schema version does. The default is `throw`.
+   *
+   * - `throw`: the function throws, because the steps of the newer version are not known.
+   * - `keep`: the function does no step and keeps the version. Use it only when each step adds tables or columns, so an
+   *   older app can work on a newer file.
+   */
+  readonly newer?: Newer | undefined;
 }
+
+/** What `migrate` does with a file of a newer schema version: throw, or keep the file as it is. */
+export type Newer = "throw" | "keep";
+
+const NEWER: readonly Newer[] = ["throw", "keep"];
 
 /** The versions of a file, or of a part of a file, before and after `migrate`. */
 export interface Migrated {
@@ -83,30 +96,33 @@ export function setSchemaVersion(db: DatabaseSync, part: string | undefined, ver
  *
  * Each step is one `BEGIN IMMEDIATE` transaction with its new version. A step that fails rolls back alone, and the steps
  * before it stay. In the transaction, the function reads the version again, so two processes can migrate one file at
- * the same time. A file with more steps than `migrations` is from a newer version of the app, and the function throws.
+ * the same time. A file with more steps than `migrations` is from a newer version of the app. Then the function throws,
+ * or with `newer: "keep"` it does no step.
  *
  * @param db - The connection.
  * @param migrations - The steps of the schema. Do not change a step that a file can have: add a new step.
- * @param options - The part of the file, and the name of the database in the errors.
+ * @param options - The part of the file, the name of the database in the errors, and the behavior with a newer file.
  */
 export function migrate(db: DatabaseSync, migrations: readonly Migration[], options: MigrateOptions = {}): Migrated {
   const part = options.part;
   checkPart(part);
   const name = options.name ?? (part === undefined ? "database" : `part ${part}`);
+  const newer = options.newer ?? "throw";
+  if (!NEWER.includes(newer)) throw new RangeError(`The value of newer must be one of ${NEWER.join(", ")}, not ${String(newer)}.`);
   const known = migrations.length;
-  const refuseNewer = (version: number): void => {
-    if (version > known) {
-      throw new Error(`The ${name} has the schema version ${String(version)}, and this code knows only ${String(known)}. Use a newer version of the app.`);
-    }
+  /** This function tells if a version is newer than the steps, and throws for such a version unless `newer` is `keep`. */
+  const isNewer = (version: number): boolean => {
+    if (version <= known) return false;
+    if (newer === "keep") return true;
+    throw new Error(`The ${name} has the schema version ${String(version)}, and this code knows only ${String(known)}. Use a newer version of the app.`);
   };
   const from = schemaVersion(db, part);
-  refuseNewer(from);
+  if (isNewer(from)) return { from, to: from };
   let version = from;
   while (version < known) {
     version = transaction(db, () => {
       const current = schemaVersion(db, part);
-      refuseNewer(current);
-      if (current === known) return current;
+      if (isNewer(current) || current === known) return current;
       const step = migrations[current] as Migration;
       if (typeof step === "string") db.exec(step);
       else step(db);

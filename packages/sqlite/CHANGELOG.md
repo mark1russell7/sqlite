@@ -1,5 +1,15 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.2.5
+
+This version lets an older app work on a newer file. The change is backward compatible.
+
+- The option `newer` of `migrate` tells what a file or a part of a newer schema version does. The default `throw` keeps the old behavior.
+- With `newer: "keep"`, `migrate` does no step on a newer file and gives `{ from, to: from }`. Two versions of an app can share one file when each step only adds tables or columns.
+- The type `Newer` is new.
+
+Runtime dependencies: none.
+
 ## 0.2.4
 
 This version adds projections. The change is backward compatible.

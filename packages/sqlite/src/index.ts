@@ -17,6 +17,7 @@ export {
   type MigrateOptions,
   type Migrated,
   type Migration,
+  type Newer,
 } from "./migrate.ts";
 export { ensureProjection, type Projected, type ProjectionOptions } from "./projection.ts";
 export { transaction, type Nested, type TransactionDatabase, type TransactionOptions } from "./transaction.ts";
