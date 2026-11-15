@@ -77,14 +77,14 @@ const parse = (value: unknown): Note => value as Note;
 describe("the portable entry", () => {
   it("imports no module out of the package at run time", () => {
     expect(closure("portable.ts")).toEqual({
-      modules: ["event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "transaction.ts", "wasm.ts"],
+      modules: ["event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "schema.ts", "transaction.ts", "wasm.ts"],
       external: [],
     });
   });
 
   it("names no module out of the package in its types, so a browser project needs no @types/node", () => {
     expect(closure("portable.ts", allImports)).toEqual({
-      modules: ["connection.ts", "event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "transaction.ts", "wasm.ts"],
+      modules: ["connection.ts", "event-log.ts", "migrate.ts", "portable.ts", "projection.ts", "schema.ts", "transaction.ts", "wasm.ts"],
       external: [],
     });
     expect(closure("index.ts", allImports).external).toEqual(expect.arrayContaining(["node:sqlite"]));
@@ -118,6 +118,7 @@ describe("the portable entry", () => {
       "BrokenLogError",
       "EVENT_LOG_SCHEMA_VERSION",
       "SCHEMA_VERSIONS_TABLE",
+      "SchemaError",
       "addMissingColumns",
       "ensureProjection",
       "eventLog",

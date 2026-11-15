@@ -42,6 +42,7 @@ export {
   type ReadOptions,
 } from "./event-log.ts";
 export { openEventLog, type EventLogFile, type EventLogFileOptions } from "./event-log-file.ts";
+export { SchemaError, type Parse, type StandardIssue, type StandardResult, type StandardSchema } from "./schema.ts";
 export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";
 export {
   checkIntegrity,

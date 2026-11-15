@@ -13,11 +13,11 @@ This file is the plan of sqlite. The Status page of the site reads it, and the t
 | SQ-7 | Nested transactions | done | Version 0.2.2: savepoints in a transaction, so a work can call a different work that writes. The event log can join a transaction of the caller. |
 | SQ-8 | The file of an older app | done | Version 0.2.3: adopt a file that has tables but no schema version. |
 | SQ-9 | The first move | open | An app with its own event log moves to this package. |
-| SQ-10 | The second move | open | An app with four stores moves to this package. Its first store moved on 0.2.2. Version 0.2.5 has what the other stores need. |
+| SQ-10 | The second move | in progress | An app with four stores moves to this package. On its branch, each of the four stores opens, migrates and locks through this package. |
 | SQ-11 | The third move | open | An app with its own store and migrations moves to this package. |
 | SQ-12 | The map of homes | done | The map of homes tells that the package is on npm. |
 | SQ-13 | The site | done | The home page has a live demo of the event log: three copies in SQLite in WebAssembly exchange notes, and the page shows the conflicts and checks the join laws after each change. A probe uses the demo in CI at each width. |
-| SQ-14 | Standard Schema validators | open | A validator of the Standard Schema as the parse of a log. |
+| SQ-14 | Standard Schema validators | done | Version 0.3.1: the `parse` of a log is a function or a validator of the Standard Schema, for example a schema of zod 4. A refused value gives a `SchemaError`. |
 | SQ-15 | Projections | done | Version 0.2.4: a file of a projection or a cache opens empty when its version differs, as the index and the vectors of polite-crawler do today. SQ-10 needs it. |
 | SQ-16 | Newer files kept | done | Version 0.2.5: with `newer: "keep"`, an older app does no step on a newer file and keeps its version. SQ-10 needs it. |
 | SQ-17 | The portable entry | done | Version 0.2.6: the entry `@mark1russell7/sqlite/portable` operates on each connection with the type `SqlConnection`, also in a browser. SQ-13 needs it. |

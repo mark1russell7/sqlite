@@ -198,6 +198,22 @@ const reports = eventLog(db, { parse: parseReport, table: "reports" });
 - The log keeps its version in the part `event-log:<table>`. `EVENT_LOG_SCHEMA_VERSION` is the version that it writes.
 - The log does not close the connection. A call of the log in a transaction of the caller throws.
 - With `nested: "savepoint"`, a call of the log joins the transaction of the caller. Then the app writes its tables and the events in one transaction. When that transaction rolls back, the events roll back too.
+
+#### A schema as the parse
+
+The `parse` of a log is a function that throws on a value that is not an event, or a validator of the [Standard Schema](https://standardschema.dev). A schema of zod 4, Valibot or ArkType is such a validator.
+
+```ts
+import { z } from "zod";
+
+const Report = z.object({ id: z.string(), at: z.string(), type: z.literal("report"), level: z.number().default(0) });
+const reports = eventLog(db, { parse: Report, table: "reports" }); // EventLog<z.output<typeof Report>>
+```
+
+- The log gets the output type of the schema. A read gives the output of the schema, so a default fills a field that older events do not have.
+- When the schema refuses a stored value, the read throws. The `cause` of the error is a `SchemaError` with the vendor and each problem.
+- The log reads synchronously. A schema that validates asynchronously gives an error.
+- `openEventLog` and `salvageEventLog` take a validator too. The package does not depend on a validator.
 - `openEventLog` opens a log in its own file, with the table `events`. That log owns the `user_version` of its file.
 
 ### A failed write

@@ -1,5 +1,15 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.1
+
+This version lets a log take a validator of the Standard Schema as its parse. The change is backward compatible.
+
+- The `parse` of `eventLog`, `openEventLog` and `salvageEventLog` is a function or a validator of the Standard Schema, for example a schema of zod 4. The log gets the output type of the schema.
+- When the schema refuses a stored value, the read throws, and its `cause` is the new `SchemaError` with each problem. A schema that validates asynchronously gives an error.
+- The types `Parse`, `StandardSchema`, `StandardResult` and `StandardIssue` are new. They copy the part of the specification that the log uses, so the package does not depend on a validator.
+
+Runtime dependencies: none.
+
 ## 0.3.0
 
 This version adds the adapter of SQLite in WebAssembly, and removes `node:sqlite` from the types of the entry `/portable`. The change of a default type breaks the entry `/portable`. The main entry does not change.
