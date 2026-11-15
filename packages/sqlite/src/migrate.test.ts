@@ -143,7 +143,7 @@ describe("migrate with newer: keep", () => {
   it("keeps a file or a part of a newer version, and does no step", () => {
     const db = connect();
     migrate(db, steps);
-    migrate(db, steps, { part: "app" });
+    migrate(db, ["CREATE TABLE c (z INTEGER)", "CREATE TABLE d (w INTEGER)"], { part: "app" });
     let ran = 0;
     const counted: Migration[] = [
       () => {
