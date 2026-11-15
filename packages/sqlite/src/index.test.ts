@@ -11,6 +11,7 @@ describe("the entry", () => {
       "SQLITE_FAULT_ACTIONS",
       "addMissingColumns",
       "checkIntegrity",
+      "ensureProjection",
       "eventLog",
       "migrate",
       "openDatabase",

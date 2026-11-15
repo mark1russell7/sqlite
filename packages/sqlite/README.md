@@ -83,6 +83,26 @@ migrate(db, steps); // a new file and an old file get the same columns
 - A column definition is SQL of the app. `ALTER TABLE` sets its rules. A `NOT NULL` column needs a default when the table has rows.
 - After the first step, each change of the schema is a new step.
 
+### Projections
+
+A projection is a file or a part of a file that the app can make again from a different source. An index and a cache are projections. A projection does not migrate. A file of a different version opens empty, and the app fills it again:
+
+```ts
+import { ensureProjection } from "@mark1russell7/sqlite";
+
+const { rebuilt } = ensureProjection(db, "CREATE TABLE pages (url TEXT PRIMARY KEY, text TEXT NOT NULL)", { version: 3 });
+if (rebuilt) reindex(db);
+```
+
+- A file of a newer version opens empty too. Thus two versions of an app on one file rebuild the projection in turn.
+- Without a part, the projection owns the whole file and its `user_version`. A rebuild removes each view and each table of the file.
+- With `part` and `tables`, a rebuild removes only those tables. The version of the part is in the table `schema_versions`.
+- The option `check` tells if a file of the correct version has the projection. When it gives false, the projection opens empty.
+- The work is one transaction. In a transaction in progress, the work is a savepoint of that transaction.
+- With `foreign_keys` on, the checks of the foreign keys wait for the end of the transaction. Thus the order of `tables` is free.
+- In a transaction in progress, the checks of the remaining work of that transaction wait for its commit too.
+- A row out of the projection that refers to a row of the projection stops the commit, because a rebuild removes that row.
+
 ## Transactions
 
 `transaction` does the work in one `BEGIN IMMEDIATE` transaction and gives the result of the work. The write lock comes at the start, so a different writer cannot cause a failure in the middle of the work.

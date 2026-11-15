@@ -18,4 +18,4 @@ This file is the plan of sqlite. The Status page of the site reads it, and the t
 | SQ-12 | The map of homes | done | The map of homes tells that the package is on npm. |
 | SQ-13 | The site | open | A live demo of the event log and the faults. |
 | SQ-14 | Standard Schema validators | open | A validator of the Standard Schema as the parse of a log. |
-| SQ-15 | Projections | open | A file of a projection or a cache opens empty when its version differs, as the index and the vectors of polite-crawler do today. SQ-10 needs it. |
+| SQ-15 | Projections | done | Version 0.2.4: a file of a projection or a cache opens empty when its version differs, as the index and the vectors of polite-crawler do today. SQ-10 needs it. |
