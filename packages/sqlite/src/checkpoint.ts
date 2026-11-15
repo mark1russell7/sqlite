@@ -4,6 +4,7 @@
  * @packageDocumentation
  */
 import type { SqlConnection } from "./connection.ts";
+import { isInTransaction } from "./probe.ts";
 
 /** The modes of `PRAGMA wal_checkpoint`. `TRUNCATE` also makes the log file empty. */
 export type CheckpointMode = "PASSIVE" | "FULL" | "RESTART" | "TRUNCATE";
@@ -37,7 +38,7 @@ export function checkpoint(db: CheckpointDatabase, mode: CheckpointMode = "PASSI
   if (!CHECKPOINT_MODES.includes(mode)) {
     throw new RangeError(`The checkpoint mode must be one of ${CHECKPOINT_MODES.join(", ")}, not ${String(mode)}.`);
   }
-  if (db.isTransaction) throw new Error("A checkpoint cannot run in a transaction. Run it after the transaction.");
+  if (isInTransaction(db)) throw new Error("A checkpoint cannot run in a transaction. Run it after the transaction.");
   const row = db.prepare(`PRAGMA wal_checkpoint(${mode})`).get() as { busy?: unknown; log?: unknown; checkpointed?: unknown } | undefined;
   return { busy: Number(row?.busy ?? 0) !== 0, log: Number(row?.log ?? -1), checkpointed: Number(row?.checkpointed ?? -1) };
 }

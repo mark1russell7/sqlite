@@ -77,7 +77,7 @@ describe("the members of a connection of sql.js", () => {
     });
   });
 
-  it("compiles each SQL text one time, and frees each statement at close", () => {
+  it("compiles a statement for each call, and frees it after the call", () => {
     const real = new SQL.Database();
     let compiled = 0;
     let freed = 0;
@@ -91,7 +91,6 @@ describe("the members of a connection of sql.js", () => {
           bind: (values) => statement.bind(values),
           step: () => statement.step(),
           getAsObject: () => statement.getAsObject(),
-          reset: () => statement.reset(),
           free: () => {
             freed += 1;
             return statement.free();
@@ -105,14 +104,37 @@ describe("the members of a connection of sql.js", () => {
       },
     };
     const db = sqlJsConnection(counted);
-    for (let round = 0; round < 3; round += 1) {
-      db.prepare("SELECT 1 AS one").get();
-      db.prepare("SELECT 2 AS two").all();
-    }
+    const one = db.prepare("SELECT 1 AS one");
+    const two = db.prepare("SELECT 2 AS two");
+    // prepare compiles each SQL text one time, so a bad text throws there
     expect(compiled).toBe(2);
+    expect(() => db.prepare("SELECT FROM")).toThrow();
+    for (let round = 0; round < 3; round += 1) {
+      expect(one.get()).toEqual({ one: 1 });
+      expect(two.all()).toEqual([{ two: 2 }]);
+    }
+    expect(compiled).toBe(9);
+    expect(freed).toBe(compiled - 1);
     db.close();
-    expect(freed).toBe(2);
     expect(closed).toBe(true);
+  });
+
+  it("keeps each statement usable after an export: sql.js frees its statements there", () => {
+    const real = new SQL.Database();
+    const db = sqlJsConnection(real);
+    try {
+      db.exec("CREATE TABLE t (v TEXT)");
+      const insert = db.prepare("INSERT INTO t (v) VALUES (?)");
+      const count = db.prepare("SELECT count(*) AS n FROM t");
+      insert.run("a");
+      real.export();
+      expect(insert.run("b")).toEqual({ changes: 1, lastInsertRowid: 2 });
+      expect(count.get()).toEqual({ n: 2 });
+      real.export();
+      expect(count.get()).toEqual({ n: 2 });
+    } finally {
+      db.close();
+    }
   });
 
   it("keeps a statement usable after an error in a step", () => {

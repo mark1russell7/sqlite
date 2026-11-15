@@ -6,6 +6,7 @@
  */
 import type { SqlConnection } from "./connection.ts";
 import { migrate, SCHEMA_VERSIONS_TABLE } from "./migrate.ts";
+import { isInTransaction } from "./probe.ts";
 import { parseFunction, type Parse } from "./schema.ts";
 import { transaction, type Nested } from "./transaction.ts";
 
@@ -209,7 +210,7 @@ export function attach<E extends LogRecord>(db: SqlConnection, table: string, pa
   /** This function does the work in one transaction or one savepoint. A failure after the start breaks the log. */
   function inTransaction<T>(work: () => T): T {
     guard();
-    const savepoint = nested === "savepoint" && db.isTransaction;
+    const savepoint = nested === "savepoint" && isInTransaction(db);
     let began = false;
     try {
       return transaction(
@@ -235,7 +236,9 @@ export function attach<E extends LogRecord>(db: SqlConnection, table: string, pa
     checkWhole("The position after", after, 0);
     if (options.limit !== undefined) checkWhole("The limit of a read", options.limit, 1);
     const types = options.types === undefined ? null : JSON.stringify(options.types);
-    const rows = db.prepare(readSql).iterate(after, types, types, options.limit ?? -1) as Iterable<{ seq: number; body: string }>;
+    // The generator keeps the statement: without a reference, node:sqlite of Node.js 22.13 can finalize it during the read
+    const statement = db.prepare(readSql);
+    const rows = statement.iterate(after, types, types, options.limit ?? -1) as Iterable<{ seq: number; body: string }>;
     for (const row of rows) yield { seq: row.seq, event: decode(row) };
   }
 
@@ -269,7 +272,7 @@ export function attach<E extends LogRecord>(db: SqlConnection, table: string, pa
     },
     recover() {
       if (broken === undefined) return;
-      if (stuck !== undefined || (!brokenInSavepoint && db.isTransaction)) {
+      if (stuck !== undefined || (!brokenInSavepoint && isInTransaction(db))) {
         throw new BrokenLogError("The rollback of the failed write did not end. Open the log again and replay it.", true, stuck ?? broken);
       }
       broken = undefined;

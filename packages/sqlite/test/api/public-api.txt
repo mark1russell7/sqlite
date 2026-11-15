@@ -534,7 +534,6 @@ export interface SqlJsStatement {
   bind(values: SqlJsValue[]): unknown;
   step(): boolean;
   getAsObject(): Record<string, unknown>;
-  reset(): unknown;
   free(): unknown;
 }
 

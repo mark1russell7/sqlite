@@ -253,7 +253,9 @@ export function salvageEventLog<E extends LogRecord>(source: string, target: Eve
     let last = 0;
     let complete = false;
     try {
-      for (const row of db.prepare(`SELECT seq, body FROM ${table} ORDER BY seq`).iterate() as Iterable<{ seq: number; body: string }>) {
+      // The loop keeps the statement: without a reference, node:sqlite of Node.js 22.13 can finalize it during the read
+      const statement = db.prepare(`SELECT seq, body FROM ${table} ORDER BY seq`);
+      for (const row of statement.iterate() as Iterable<{ seq: number; body: string }>) {
         take(row.seq, row.body);
         last = row.seq;
       }

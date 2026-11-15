@@ -6,6 +6,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "./database.ts";
 import { addMissingColumns, migrate, SCHEMA_VERSIONS_TABLE, schemaVersion, tableColumns, userVersion, type Migration } from "./migrate.ts";
 
+/** This function closes the connection. It ignores the error of a connection that the test closed. */
+function closeQuietly(db: { close(): void }): void {
+  try {
+    db.close();
+  } catch {
+    // The test closed the connection
+  }
+}
+
 let folder: string;
 let file: string;
 const open: DatabaseSync[] = [];
@@ -22,7 +31,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  for (const db of open.splice(0)) if (db.isOpen) db.close();
+  // Node.js before 22.15 has no isOpen. A second close() throws, and the hook ignores that error.
+  for (const db of open.splice(0)) closeQuietly(db);
   rmSync(folder, { recursive: true, force: true });
 });
 

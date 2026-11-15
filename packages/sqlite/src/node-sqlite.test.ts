@@ -14,7 +14,8 @@ vi.mock("node:sqlite", async (importOriginal) => {
     readonly #inner: InstanceType<typeof actual.DatabaseSync>;
     constructor(path: string, options?: { readonly readOnly?: boolean }) {
       this.#inner = options === undefined ? new actual.DatabaseSync(path) : new actual.DatabaseSync(path, options);
-      if (state.withGetter) Object.defineProperty(this, "isTransaction", { get: () => this.#inner.isTransaction });
+      // Node.js before 22.16 has no getter, so there the mock has none
+      if (state.withGetter && typeof this.#inner.isTransaction === "boolean") Object.defineProperty(this, "isTransaction", { get: () => this.#inner.isTransaction });
     }
     exec(sql: string): void {
       this.#inner.exec(sql);

@@ -323,7 +323,7 @@ describe("eventLog", () => {
     log.append(note("a"));
     expect(db.prepare("SELECT count(*) AS n FROM events").get()).toEqual({ n: 1 });
     expect("close" in log).toBe(false);
-    expect(db.isOpen).toBe(true);
+    expect(db.prepare("SELECT 1 AS one").get()).toEqual({ one: 1 });
     db.close();
   });
 

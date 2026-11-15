@@ -27,3 +27,27 @@ export function probeTransaction(db: ExecConnection): boolean {
   db.exec("ROLLBACK");
   return false;
 }
+
+/** The part of a connection that `isInTransaction` uses: the getter, else `exec`, else `prepare`. */
+export interface StateConnection {
+  readonly isTransaction?: unknown;
+  exec?(sql: string): unknown;
+  prepare?(sql: string): { run(): unknown };
+}
+
+/**
+ * This function tells if the connection is in a transaction. It reads the getter `isTransaction`. A connection of
+ * Node.js before 22.16 has no getter. Then the function uses the probe, with `exec` or with a prepared statement.
+ *
+ * @param db - The connection.
+ */
+export function isInTransaction(db: StateConnection): boolean {
+  const state = db.isTransaction;
+  if (typeof state === "boolean") return state;
+  if (typeof db.exec === "function") return probeTransaction(db as ExecConnection);
+  if (typeof db.prepare === "function") {
+    const connection = db as Required<Pick<StateConnection, "prepare">>;
+    return probeTransaction({ exec: (sql) => connection.prepare(sql).run() });
+  }
+  throw new TypeError("The connection has no isTransaction, no exec and no prepare, so its transaction state is not known.");
+}

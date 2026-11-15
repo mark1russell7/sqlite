@@ -8,7 +8,7 @@ The entry `@mark1russell7/sqlite/portable` operates on other drivers of SQLite t
 npm install @mark1russell7/sqlite
 ```
 
-The package needs Node.js 22.16 or later.
+The package needs Node.js 22.13 or later: the first Node.js with `node:sqlite` and no flag. CI runs the tests on Node.js 22.13.
 
 ## The connection
 
@@ -413,7 +413,8 @@ db.close();
 - sql.js keeps the database in memory. To keep the changes, the app writes the bytes of `export()` to a file.
 - sql.js gives each integer as a JavaScript number. A `bigint` parameter must be a safe integer, else the call throws a `RangeError`.
 - sql.js has no call for the state of the transaction. Thus `isTransaction` starts a `BEGIN`. SQLite refuses it in a transaction, and else a `ROLLBACK` ends it at once.
-- The statements, `iterate` and `close` operate as in `wasmConnection`.
+- Each call compiles its statement and frees it after the call. An `export()` of sql.js frees each statement of the database, so the connection keeps none. A statement from `prepare` operates after a save.
+- `iterate` gives an array, as in `wasmConnection`. `close` closes the database.
 - The tests of the package run one suite of the portable entry on `node:sqlite`, SQLite in WebAssembly and sql.js.
 
 ## The experimental warning
