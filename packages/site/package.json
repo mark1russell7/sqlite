@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "@mark1russell7/cue": "^2.0.0",
-    "@mark1russell7/site-pages": "^0.5.0",
+    "@mark1russell7/site-pages": "^0.7.0",
     "@mark1russell7/sqlite": "workspace:*",
     "@sqlite.org/sqlite-wasm": "3.54.1-build1",
     "@types/node": "^26.6.5",
