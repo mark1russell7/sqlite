@@ -3,28 +3,33 @@
 # and round: the append, the read after a position, the read by id, the open, the migrate of an older file, the count,
 # the recovery after a SIGKILL and the quick check.
 #
-# The times depend on the runner, so the bench operates only in CI. The rule of the gate limits: a limit is the worst of
-# 5 or more CI runs plus their spread. Thus a manual run starts 5 jobs of each rung, and the job limits gives the
-# candidate limits. A pull request writes them into the ladder. Until then, no rung is locked and the bench blocks nothing.
+# The times depend on the runner, so the bench operates only in CI. Each job measures all the rungs of the run on one
+# runner. Thus the growth of a measure from one rung to the next comes from one computer, and the speed of the computer
+# cancels. The job growth gives the verdict of each measure against the claim of its class: a flat measure grows at most
+# 2 times for 10 times the events, and a linear measure at most 20 times (scale/shared.ts). Six runners give the
+# interval of the median growth the coverage 0.969.
 #
-# A pull request that changes the bench starts the three small rungs once. The weekly run records each rung once, because
-# a new Node.js can bring a new SQLite.
+# The job growth also gives the candidate budgets of each rung, as a report. The CPU models of the runners differ by up
+# to 4 times, so a budget of a time is not a gate.
+#
+# A pull request that changes the code of the package starts the three small rungs on 6 runners. The weekly run measures
+# each rung on 6 runners, because a new Node.js can bring a new SQLite.
 name: Scale
 
 on:
-  # A person starts a run of the limits: gh workflow run scale.yml --ref <branch> -f jobs=5
+  # A person starts a run: gh workflow run scale.yml --ref <branch> -f jobs=6
   workflow_dispatch:
     inputs:
       jobs:
-        description: The count of jobs of each rung, from 1 to 8. A limit needs 5 or more.
-        default: "5"
+        description: The count of jobs, from 1 to 8. Each job measures each rung on its runner. A growth verdict needs 6.
+        default: "6"
       rungs:
         description: The rungs, as a JSON list of event counts from 1000 to 10000000.
         default: "[1000, 10000, 100000, 1000000, 10000000]"
   schedule:
     - cron: "50 7 * * 3"
   # Each pull request starts the workflow, thus the ruleset can ask for "Scale OK". The job changes skips the rungs of a
-  # pull request that does not change the bench.
+  # pull request that does not change the package.
   pull_request:
 
 permissions:
@@ -50,8 +55,12 @@ jobs:
       - id: changes
         uses: mark1russell7/template/.github/actions/changes@eb7f3517aa8614e338a46acd37ab0c49395be5f9 # main
         with:
+          # A change of the source can change a growth, so it starts the bench too
           paths: |
             packages/sqlite/scale/**
+            packages/sqlite/src/**
+            packages/sqlite/package.json
+            pnpm-lock.yaml
             .github/workflows/scale.yml
 
   plan:
@@ -61,8 +70,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      rungs: ${{ steps.plan.outputs.rungs }}
+      large: ${{ steps.plan.outputs.large }}
     steps:
-      - name: Make the matrix of rungs and jobs
+      - name: Make the matrix of jobs and the list of rungs
         id: plan
         env:
           EVENT: ${{ github.event_name }}
@@ -70,19 +81,23 @@ jobs:
           RUNGS: ${{ inputs.rungs }}
         run: |
           case "$EVENT" in
-            pull_request) rungs='[1000, 10000, 100000]'; jobs=1 ;;
-            schedule) rungs='[1000, 10000, 100000, 1000000, 10000000]'; jobs=1 ;;
+            pull_request) rungs='[1000, 10000, 100000]'; jobs=6 ;;
+            schedule) rungs='[1000, 10000, 100000, 1000000, 10000000]'; jobs=6 ;;
             *) rungs="$RUNGS"; jobs="$JOBS" ;;
           esac
-          matrix="$(jq -cn --argjson rungs "$rungs" --argjson jobs "$jobs" '
+          plan="$(jq -cn --argjson rungs "$rungs" --argjson jobs "$jobs" '
             if ($jobs | type) != "number" or $jobs < 1 or $jobs > 8 or ($jobs | floor) != $jobs then error("jobs must be a whole number from 1 to 8")
             elif ($rungs | type) != "array" or ($rungs | length) == 0 or ($rungs - [1000, 10000, 100000, 1000000, 10000000] | length) > 0 then error("each rung must be one of 1000, 10000, 100000, 1000000 and 10000000")
-            else {include: [$rungs[] as $events | range(1; $jobs + 1) as $job | {events: $events, job: $job}]} end')"
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "The matrix: $matrix" >> "$GITHUB_STEP_SUMMARY"
+            else {matrix: {include: [range(1; $jobs + 1) as $job | {job: $job}]}, rungs: ($rungs | unique | map(tostring) | join(",")), large: (($rungs | max) >= 1000000)} end')"
+          {
+            echo "matrix=$(jq -c .matrix <<< "$plan")"
+            echo "rungs=$(jq -r .rungs <<< "$plan")"
+            echo "large=$(jq -r .large <<< "$plan")"
+          } >> "$GITHUB_OUTPUT"
+          echo "The plan: $plan" >> "$GITHUB_STEP_SUMMARY"
 
-  rung:
-    name: Rung ${{ matrix.events }} events (job ${{ matrix.job }})
+  bench:
+    name: Rungs on runner ${{ matrix.job }}
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -93,7 +108,7 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - name: Free the disk for the large rungs
-        if: ${{ matrix.events >= 1000000 }}
+        if: ${{ needs.plan.outputs.large == 'true' }}
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h "$RUNNER_TEMP"
@@ -106,24 +121,27 @@ jobs:
           node-version: "24"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Measure the rung
+      - name: Measure each rung on this runner
         env:
-          EVENTS: ${{ matrix.events }}
+          RUNGS: ${{ needs.plan.outputs.rungs }}
           JOB: ${{ matrix.job }}
+          # Unique in the run and its attempts, so a job that starts again is a different runner
+          RUNNER_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.job }}
         run: >-
           node --disable-warning=ExperimentalWarning packages/sqlite/scale/run.ts
-          --events "$EVENTS" --rounds 6 --job "$JOB"
-          --dir "$RUNNER_TEMP/scale" --out "$RUNNER_TEMP/records/scale-$EVENTS-job-$JOB.json"
+          --events "$RUNGS" --rounds 6 --job "$JOB" --runner "$RUNNER_ID"
+          --dir "$RUNNER_TEMP/scale" --records "$RUNNER_TEMP/records"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: scale-${{ matrix.events }}-job-${{ matrix.job }}
+          name: scale-job-${{ matrix.job }}
           path: ${{ runner.temp }}/records/
           if-no-files-found: warn
+          overwrite: true
           retention-days: 90
 
-  limits:
-    needs: [changes, rung]
+  growth:
+    needs: [changes, plan, bench]
     if: ${{ !cancelled() && needs.changes.outputs.match == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -139,21 +157,28 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: scale-*
+          pattern: scale-job-*
           merge-multiple: true
           path: ${{ runner.temp }}/records
-      - name: Give the candidate limits
+      - name: Give the growth verdict of each measure
+        run: node packages/sqlite/scale/growth.ts "$RUNNER_TEMP/records" "$RUNNER_TEMP/scale-growth.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Give the candidate budgets of each rung
+        if: ${{ !cancelled() }}
         run: node packages/sqlite/scale/limits.ts "$RUNNER_TEMP/records" "$RUNNER_TEMP/scale-limits.json" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
         with:
-          name: scale-limits
-          path: ${{ runner.temp }}/scale-limits.json
+          name: scale-verdicts
+          path: |
+            ${{ runner.temp }}/scale-growth.json
+            ${{ runner.temp }}/scale-limits.json
+          if-no-files-found: warn
           retention-days: 90
 
   scale-ok:
     name: Scale OK
     if: ${{ !cancelled() }}
-    needs: [changes, plan, rung, limits]
+    needs: [changes, plan, bench, growth]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
