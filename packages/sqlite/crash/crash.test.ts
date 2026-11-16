@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { type Stop, type StopPlan, type StopSignal, stopPlan } from "@mark1russell7/rigor-chaos";
 import { type StopRun, type StopRunOptions, countStops, runToStop } from "@mark1russell7/rigor-testkit/stop";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { checkIntegrity, eventLog, openDatabase, openEventLog, schemaVersion } from "../src/index.ts";
+import { checkIntegrity, openDatabase, openEventLog, schemaVersion } from "../src/index.ts";
 import { type Scenario, type ScenarioArgs, crashEvent, markTime, parseCrashEvent, writerLines } from "./shared.ts";
 
 const WRITER = fileURLToPath(new URL("./writer.ts", import.meta.url));
@@ -109,6 +109,11 @@ function committedTransactions(db: DatabaseSync, table: string, size: number): n
   return rows.length;
 }
 
+/** This function tells if the stop ended the writer: the exit of the writer has a signal. */
+function signalled(run: StopRun): boolean {
+  return run.exit.signal !== null;
+}
+
 /** This function gives a stop at a time later by `offset` ms. */
 function later(stop: Stop, offset: number): Stop {
   if (!("ms" in stop.at)) throw new RangeError("Only a stop at a time takes an offset.");
@@ -163,13 +168,16 @@ async function runCase<S extends Scenario>(test: Case<S>): Promise<StopRun[]> {
       ms: Math.round(run.ms),
     };
     try {
+      const ended = run.exit.signal !== null ? `the signal ${run.exit.signal}` : `the code ${String(run.exit.code)}`;
       if ("step" in stop.at) {
         assert(run.stopped && run.lastStep === stop.at.step, `The writer did not stop at the step ${stop.at.step}: the last step is ${String(run.lastStep)}.`);
+        assert(ended === `the signal ${stop.signal}`, `The writer ended with ${ended}, not the signal ${stop.signal}.`);
+      } else {
+        // A stop at a time ends the writer with its signal. A writer that ends before the stop ends with the code 0.
+        // The exit decides, not `stopped`: a signal to a writer that ended before the test read its exit gives `stopped`.
+        const allowed = [`the signal ${stop.signal}`, "the code 0"];
+        assert(allowed.includes(ended), `The writer ended with ${ended}, not ${allowed.join(" or ")}.`);
       }
-      // A stop that applied ends the writer with its signal. A writer that the stop did not reach ends with the code 0.
-      const expected = run.stopped ? `the signal ${stop.signal}` : "the code 0";
-      const ended = run.exit.signal !== null ? `the signal ${run.exit.signal}` : `the code ${String(run.exit.code)}`;
-      assert(ended === expected, `The writer ended with ${ended}, not ${expected}.`);
       const facts = test.afterStop(run, args);
       const rerun = await complete(test.scenario, args);
       const after = test.afterRerun(rerun, args, facts);
@@ -187,37 +195,49 @@ async function runCase<S extends Scenario>(test: Case<S>): Promise<StopRun[]> {
   return runs;
 }
 
+/** The size of the work of the writer in the transaction cases. */
+interface TransactionSize {
+  readonly transactions: number;
+  readonly writes: number;
+}
+
 describe("a stop in a transaction", () => {
-  const size = { transactions: 12, writes: 5 };
+  /** The stops at a step examine each point of a small file. */
+  const size: TransactionSize = { transactions: 12, writes: 5 };
+  /**
+   * The stops at a time need a long phase. In CI, the start of the writer varies by approximately 10 ms, and 12
+   * transactions take approximately 6 ms.
+   */
+  const timeSize: TransactionSize = { transactions: 240, writes: 5 };
 
   /**
    * The count of the committed transactions after the last stop point, as a range. A stop at a step stops at its point,
    * thus the count is exact. After a stop at a time, the commit after the last write can come before the signal.
    */
-  function committedRange(label: string | undefined, measure: "step" | "ms"): readonly [number, number] {
+  function committedRange(label: string | undefined, measure: "step" | "ms", writes: number): readonly [number, number] {
     if (label === undefined) return [0, 0];
     const [kind, tx, write] = label.split(" ");
     const k = Number(tx);
     if (kind === "commit") return [k + 1, k + 1];
-    const lastWrite = kind === "write" && Number(write) === size.writes - 1;
+    const lastWrite = kind === "write" && Number(write) === writes - 1;
     return [k, measure === "ms" && lastWrite ? k + 1 : k];
   }
 
-  function transactionCase(plan: StopPlan, measure: "step" | "ms", offset?: number): Case<"transaction"> {
+  function transactionCase(plan: StopPlan, measure: "step" | "ms", given: TransactionSize, offset?: number): Case<"transaction"> {
     return {
       scenario: "transaction",
       plan,
       ...(offset === undefined ? {} : { offset }),
-      args: () => ({ path: freshPath("transaction"), ...size }),
+      args: () => ({ path: freshPath("transaction"), ...given }),
       afterStop: (run, args) => {
-        const committed = examine(args.path, (db) => committedTransactions(db, "rows", size.writes));
-        const [least, most] = committedRange(run.lastLabel, measure);
+        const committed = examine(args.path, (db) => committedTransactions(db, "rows", given.writes));
+        const [least, most] = committedRange(run.lastLabel, measure, given.writes);
         assert(committed >= least && committed <= most, `The file has ${committed} committed transactions, not ${least} to ${most}.`);
         return { committed };
       },
       afterRerun: (_rerun, args) => {
-        const committed = examine(args.path, (db) => committedTransactions(db, "rows", size.writes));
-        assert(committed === size.transactions, `After the rerun, the file has ${committed} of ${size.transactions} transactions.`);
+        const committed = examine(args.path, (db) => committedTransactions(db, "rows", given.writes));
+        assert(committed === given.transactions, `After the rerun, the file has ${committed} of ${given.transactions} transactions.`);
         return { committed };
       },
       cleanup: (args) => removeDatabase(args.path),
@@ -230,7 +250,7 @@ describe("a stop in a transaction", () => {
       const steps = await countStops(writer("transaction", { path: freshPath("transaction-count"), ...size }));
       expect(steps).toBe(size.transactions * (size.writes + 2));
       const plan = stopPlan({ within: { step: steps }, draws: DRAWS, signals: SIGNALS }, "sqlite/crash/transaction/step");
-      const runs = await runCase(transactionCase(plan, "step"));
+      const runs = await runCase(transactionCase(plan, "step", size));
       expect(runs).toHaveLength(plan.stops.length);
     },
     TEST_MS,
@@ -239,10 +259,15 @@ describe("a stop in a transaction", () => {
   it(
     "keeps each committed transaction and no part of the others, at each stop of a time",
     async () => {
-      const phase = await phaseOf("transaction", { path: freshPath("transaction-phase"), ...size }, "transactions begin", "transactions end");
+      const phase = await phaseOf("transaction", { path: freshPath("transaction-phase"), ...timeSize }, "transactions begin", "transactions end");
       const plan = stopPlan({ within: { ms: phase.span }, draws: DRAWS, signals: SIGNALS }, "sqlite/crash/transaction/ms");
-      const runs = await runCase(transactionCase(plan, "ms", phase.offset));
+      const runs = await runCase(transactionCase(plan, "ms", timeSize, phase.offset));
       expect(runs).toHaveLength(plan.stops.length);
+      const last = `commit ${timeSize.transactions - 1}`;
+      const inTransactions = runs.filter((run) => signalled(run) && run.lastLabel !== undefined && run.lastLabel !== last).length;
+      record({ scenario: "transaction", phase, stops: runs.length, inTransactions });
+      // A plan that no stop applied during the transactions did not examine them
+      expect(inTransactions, `The phase is ${JSON.stringify(phase)} ms.`).toBeGreaterThan(0);
     },
     TEST_MS,
   );
@@ -363,7 +388,7 @@ describe("a stop in a checkpoint", () => {
         },
         cleanup: (args) => removeDatabase(args.path),
       });
-      const inCheckpoint = runs.filter((run) => run.stopped && run.lastLabel === "checkpoint begin").length;
+      const inCheckpoint = runs.filter((run) => signalled(run) && run.lastLabel === "checkpoint begin").length;
       record({ scenario: "checkpoint", phase, stops: runs.length, inCheckpoint });
       // A plan that no stop applied during the checkpoint did not examine the checkpoint
       expect(inCheckpoint, `The phase is ${JSON.stringify(phase)} ms.`).toBeGreaterThan(0);
@@ -401,8 +426,16 @@ describe("a stop in a salvage", () => {
     assert(JSON.stringify(now) === JSON.stringify(sourceFiles), `The folder of the source has ${now.join(", ")}, not ${sourceFiles.join(", ")}.`);
   }
 
+  /**
+   * This function gives the count of the events of the new log, and does not write. `eventLog` keeps its version as a
+   * part of the file and migrates, but `openEventLog` keeps the `user_version` of the file. Thus this read uses SQL.
+   * Each step of the log commits with its version, so the table is there only at the version 1 or more.
+   */
   function storedEvents(db: DatabaseSync): number {
-    return eventLog(db, { parse: parseCrashEvent }).count();
+    const version = schemaVersion(db);
+    const has = hasTable(db, "events");
+    assert(has === version >= 1, `At the schema version ${version}, the table events is ${has ? "there" : "not there"}.`);
+    return has ? (db.prepare("SELECT COUNT(*) AS n FROM events").get() as { n: number }).n : 0;
   }
 
   it(
@@ -436,7 +469,7 @@ describe("a stop in a salvage", () => {
         },
         cleanup: (args) => removeDatabase(args.target),
       });
-      const inSalvage = runs.filter((run) => run.stopped && run.lastLabel === "salvage begin").length;
+      const inSalvage = runs.filter((run) => signalled(run) && run.lastLabel === "salvage begin").length;
       record({ scenario: "salvage", phase, stops: runs.length, inSalvage });
       // A plan that no stop applied during the salvage did not examine the salvage
       expect(inSalvage, `The phase is ${JSON.stringify(phase)} ms.`).toBeGreaterThan(0);
