@@ -16,7 +16,8 @@
     "src/**/*",
     "test/types/**/*",
     "*.config.ts",
-    "crash/**/*"
+    "crash/**/*",
+    "scale/**/*"
   ],
   "exclude": []
 }

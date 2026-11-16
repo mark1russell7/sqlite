@@ -78,7 +78,10 @@
   },
   "devDependencies": {
     "@mark1russell7/cue": "^2.0.0",
+    "@mark1russell7/rigor-bench": "^0.2.52",
     "@mark1russell7/rigor-chaos": "^0.3.2",
+    "@mark1russell7/rigor-generators": "^0.1.17",
+    "@mark1russell7/rigor-statistics": "^0.2.7",
     "@mark1russell7/rigor-testkit": "^0.1.12",
     "@sqlite.org/sqlite-wasm": "3.54.1-build1",
     "@types/node": "^26.6.5",
