@@ -30,12 +30,12 @@ This section gives the state on 2026-11-16.
 
 | Row | State | Pull request |
 | --- | --- | --- |
-| M1 | Approved, and its CI passed. It merges alone in the MINOR 0.61.0 of the client, after 0.60.1 is on npm and after client #634. | [client #637](https://github.com/mark1russell7/client/pull/637) |
+| M1 | The owner of the client approved it. Client #634 is merged, and main is merged into this pull request. It merges alone in the MINOR 0.61.0 of the client, after 0.60.1 is on npm. | [client #637](https://github.com/mark1russell7/client/pull/637) |
 | M2 | Approved, in the pull request of M1. | [client #637](https://github.com/mark1russell7/client/pull/637) |
 | M3 | Kept. Its connection moves with M1. | [client #637](https://github.com/mark1russell7/client/pull/637) |
-| M4 | Merged on 2026-11-16, for the release docker-sqlite 0.3.3. Each function has a `@deprecated` tag with its replacement, and the README has a table. It gives no warning at run time. After M1, the owner decides on the archive of the repository. | [docker-sqlite #72](https://github.com/mark1russell7/docker-sqlite/pull/72) |
+| M4 | Done. docker-sqlite 0.3.3 is on npm since 2026-11-16. Each function has a `@deprecated` tag with its replacement, and the README has a table. It gives no warning at run time. After M1, the owner decides on the archive of the repository. | [docker-sqlite #72](https://github.com/mark1russell7/docker-sqlite/pull/72) |
 | M5 | Done. docker-sqlite 0.3.2 refuses a file in WAL mode that has a `-wal` or `-shm` file. It is on npm since 2026-11-16. | [docker-sqlite #71](https://github.com/mark1russell7/docker-sqlite/pull/71) |
-| M6 | Approved. It merges after the client release 0.59.1 is on npm. | [client #632](https://github.com/mark1russell7/client/pull/632) |
+| M6 | Merged on 2026-11-16, after the client release 0.60.0. It goes to npm in the client release 0.60.1. | [client #632](https://github.com/mark1russell7/client/pull/632) |
 | M7 | Done on 2026-11-15. The desktop app copies its old log with `snapshot`. | In the repository of the app |
 
 ## The fault of a whole-file save next to a WAL file
