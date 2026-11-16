@@ -173,10 +173,11 @@ async function runCase<S extends Scenario>(test: Case<S>): Promise<StopRun[]> {
         assert(run.stopped && run.lastStep === stop.at.step, `The writer did not stop at the step ${stop.at.step}: the last step is ${String(run.lastStep)}.`);
         assert(ended === `the signal ${stop.signal}`, `The writer ended with ${ended}, not the signal ${stop.signal}.`);
       } else {
-        // A stop at a time ends the writer with its signal. A writer that ends before the stop ends with the code 0.
-        // The exit decides, not `stopped`: a signal to a writer that ended before the test read its exit gives `stopped`.
+        // A stop at a time ends the writer with its signal. A writer that ends before the stop ends with the code 0, and
+        // then `stopped` is false, also when the signal came after the end (`stopOccurred` of rigor-testkit 0.1.16).
         const allowed = [`the signal ${stop.signal}`, "the code 0"];
         assert(allowed.includes(ended), `The writer ended with ${ended}, not ${allowed.join(" or ")}.`);
+        assert(run.stopped === (ended !== "the code 0"), `The writer ended with ${ended}, but stopped is ${String(run.stopped)}.`);
       }
       const facts = test.afterStop(run, args);
       const rerun = await complete(test.scenario, args);

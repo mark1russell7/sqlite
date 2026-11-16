@@ -7,6 +7,10 @@
 # pull request. The suite runs only when the code of the home, the suite, the lock file or this file changed. A push or a
 # release does not repeat it: the pull request of the change ran it. The schedule runs it on main each week, because a
 # new Node.js can bring a new SQLite. Each run uploads the record of each stop as an artifact.
+#
+# The job power is the power-cut test (packages/sqlite/power, roadmap SQ-26). The disk tier of @mark1russell7/harness
+# starts a writer on LazyFS, and loses each write after the last fsync. The job runs when the code of the home, the
+# power test, the lock file or this file changed.
 name: Crash
 
 on:
@@ -35,6 +39,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       run: ${{ steps.paths.outputs.run }}
+      power: ${{ steps.paths.outputs.power }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,15 +55,18 @@ jobs:
           # A manual run of this file and the weekly run always run the suite
           if [ "$EVENT" = schedule ] || { [ "$EVENT" = workflow_dispatch ] && [ "$WORKFLOW" = "Crash" ]; }; then
             echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "power=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "$EVENT" != pull_request ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "A push or a release does not repeat the crash suite. The pull request of the change ran it." >> "$GITHUB_STEP_SUMMARY"
+            echo "power=false" >> "$GITHUB_OUTPUT"
+            echo "A push or a release does not repeat the crash suite and the power test. The pull request of the change ran them." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "power=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           files="$(git diff --name-only "$BASE" "$GITHUB_SHA")"
@@ -67,6 +75,12 @@ jobs:
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
             echo "No code of the home, file of the suite, lock file or crash workflow changed, so the suite did not run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if echo "$files" | grep -qxE 'packages/sqlite/(src|power)/.*|packages/sqlite/package\.json|packages/sqlite/vitest\.power\.config\.ts|pnpm-lock\.yaml|\.github/workflows/crash\.yml'; then
+            echo "power=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "power=false" >> "$GITHUB_OUTPUT"
+            echo "No code of the home, file of the power test, lock file or crash workflow changed, so the power test did not run." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   crash:
@@ -113,5 +127,49 @@ jobs:
         with:
           name: crash-records-node-${{ matrix.node }}
           path: ${{ runner.temp }}/crash-records.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+
+  power:
+    name: Power cut (LazyFS)
+    needs: changes
+    if: ${{ needs.changes.outputs.power == 'true' }}
+    # Each case starts a privileged container with LazyFS, a FUSE file system. The AppArmor profile of Docker refuses a
+    # FUSE mount in a container that is not privileged.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: The folder of the records
+        run: echo "SQLITE_POWER_OUT=$RUNNER_TEMP/power-records" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      # The image of LazyFS has Node.js 24, so the host has the same Node.js
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @mark1russell7/sqlite run test:power
+        env:
+          SQLITE_POWER: "1"
+      - name: The commits that each cut kept
+        if: ${{ !cancelled() }}
+        run: |
+          if ! ls "$SQLITE_POWER_OUT"/case-*.json > /dev/null 2>&1; then
+            echo "The power test wrote no record." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "| Case | synchronous | Journal | Commits before the cut | Commits kept | Lost | Claim | Problems |"
+            echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
+            jq -s -r 'sort_by(.index)[] | "| \(.case) | \(.settings.synchronous) | \(.settings.journal) | \(.progress.commits) | \(.record.persisted.commits // "-") | \(.lost // "-") | \(.claim) | \(.problems | length) |"' "$SQLITE_POWER_OUT"/case-*.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: power-records
+          path: ${{ runner.temp }}/power-records
           if-no-files-found: warn
           retention-days: 14

@@ -74,12 +74,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.node22.json",
-    "test:crash": "vitest run --config vitest.crash.config.ts"
+    "test:crash": "vitest run --config vitest.crash.config.ts",
+    "test:power": "vitest run --config vitest.power.config.ts"
   },
   "devDependencies": {
     "@mark1russell7/cue": "^2.0.0",
+    "@mark1russell7/harness": "^0.16.5",
     "@mark1russell7/rigor-bench": "^0.2.52",
-    "@mark1russell7/rigor-chaos": "^0.3.2",
+    "@mark1russell7/rigor-chaos": "^0.3.3",
     "@mark1russell7/rigor-generators": "^0.1.17",
     "@mark1russell7/rigor-statistics": "^0.2.7",
     "@mark1russell7/rigor-testkit": "^0.1.12",

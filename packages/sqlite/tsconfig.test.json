@@ -17,7 +17,8 @@
     "test/types/**/*",
     "*.config.ts",
     "crash/**/*",
-    "scale/**/*"
+    "scale/**/*",
+    "power/**/*"
   ],
   "exclude": []
 }
