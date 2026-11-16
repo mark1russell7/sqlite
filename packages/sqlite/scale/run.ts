@@ -97,7 +97,7 @@ const run = await freshRun({
   base: {
     id: "sqlite",
     command: [process.execPath, "--disable-warning=ExperimentalWarning", ARM, "--path", path, "--events", String(events)],
-    ...(process.env.GITHUB_SHA === undefined ? {} : { commit: process.env.GITHUB_SHA }),
+    ...(process.env["GITHUB_SHA"] === undefined ? {} : { commit: process.env["GITHUB_SHA"] }),
   },
   candidates: [],
   cases: [...MEASURES],
@@ -126,7 +126,7 @@ const record: ScaleRecord = {
   format: SCALE_FORMAT,
   events,
   job: String(job),
-  commit: process.env.GITHUB_SHA ?? "local",
+  commit: process.env["GITHUB_SHA"] ?? "local",
   at: new Date().toISOString(),
   node: process.version,
   sqlite: sqliteVersion(),
@@ -147,7 +147,7 @@ const record: ScaleRecord = {
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, `${JSON.stringify(record, null, 2)}\n`);
 
-const summary = process.env.GITHUB_STEP_SUMMARY;
+const summary = process.env["GITHUB_STEP_SUMMARY"];
 if (summary !== undefined) {
   const rows = [
     `### ${events.toLocaleString("en-US")} events, job ${job}`,

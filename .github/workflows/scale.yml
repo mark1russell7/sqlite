@@ -22,11 +22,10 @@ on:
         description: The rungs, as a JSON list of event counts from 1000 to 10000000.
         default: "[1000, 10000, 100000, 1000000, 10000000]"
   schedule:
-    - cron: "41 7 * * 3"
+    - cron: "50 7 * * 3"
+  # Each pull request starts the workflow, thus the ruleset can ask for "Scale OK". The job changes skips the rungs of a
+  # pull request that does not change the bench.
   pull_request:
-    paths:
-      - packages/sqlite/scale/**
-      - .github/workflows/scale.yml
 
 permissions:
   contents: read
@@ -40,7 +39,24 @@ defaults:
     shell: bash
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      match: ${{ steps.changes.outputs.match }}
+    steps:
+      - id: changes
+        uses: mark1russell7/template/.github/actions/changes@eb7f3517aa8614e338a46acd37ab0c49395be5f9 # main
+        with:
+          paths: |
+            packages/sqlite/scale/**
+            .github/workflows/scale.yml
+
   plan:
+    needs: changes
+    if: needs.changes.outputs.match == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -107,8 +123,8 @@ jobs:
           retention-days: 90
 
   limits:
-    needs: rung
-    if: ${{ !cancelled() }}
+    needs: [changes, rung]
+    if: ${{ !cancelled() && needs.changes.outputs.match == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -133,3 +149,15 @@ jobs:
           name: scale-limits
           path: ${{ runner.temp }}/scale-limits.json
           retention-days: 90
+
+  scale-ok:
+    name: Scale OK
+    if: ${{ !cancelled() }}
+    needs: [changes, plan, rung, limits]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - uses: mark1russell7/template/.github/actions/gate-summary@eb7f3517aa8614e338a46acd37ab0c49395be5f9 # main
+        with:
+          needs: ${{ toJSON(needs) }}
