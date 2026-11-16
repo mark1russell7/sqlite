@@ -1,5 +1,16 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.8
+
+This version corrects the read of `salvageEventLog` on Node.js 22.13. The change is backward compatible.
+
+- On Node.js 22.13, a garbage collection during the read of the broken log can finalize the statement of the read.
+- Then the salvage stops with the error `ERR_INVALID_STATE`, and `openCheckedEventLog` cannot recover the file.
+- The salvage reads the broken log in pages of 500 rows with `all()`. It does not use `iterate()`.
+- A test does a garbage collection after each 1000 events of a salvage of 50000 events. With the old read, it fails on Node.js 22.13.1.
+
+Runtime dependencies: none.
+
 ## 0.3.7
 
 This version adds the checked open of an event log. The change is backward compatible.

@@ -201,6 +201,8 @@ export interface Salvaged {
 
 /** The count of events in one transaction of the salvage. */
 const BATCH = 500;
+/** The count of rows in one read of the broken log. */
+const READ_ROWS = 500;
 /** When the end of a broken log is not known, the salvage stops after this count of positions with no event. */
 const GAP = 1000;
 
@@ -263,11 +265,16 @@ export function salvageEventLog<E extends LogRecord>(source: string, target: Eve
     let last = 0;
     let complete = false;
     try {
-      // The loop keeps the statement: without a reference, node:sqlite of Node.js 22.13 can finalize it during the read
-      const statement = db.prepare(`SELECT seq, body FROM ${table} ORDER BY seq`);
-      for (const row of statement.iterate() as Iterable<{ seq: number; body: string }>) {
-        take(row.seq, row.body);
-        last = row.seq;
+      // The read takes pages of rows with all(), not iterate(). On Node.js 22.13, a garbage collection during an iterate()
+      // can finalize the statement of the iterator, and the read then stops with ERR_INVALID_STATE.
+      const page = db.prepare(`SELECT seq, body FROM ${table} WHERE seq > ? ORDER BY seq LIMIT ${String(READ_ROWS)}`);
+      for (;;) {
+        const rows = page.all(last) as { seq: number; body: string }[];
+        for (const row of rows) {
+          take(row.seq, row.body);
+          last = row.seq;
+        }
+        if (rows.length < READ_ROWS) break;
       }
       complete = true;
     } catch (error) {
