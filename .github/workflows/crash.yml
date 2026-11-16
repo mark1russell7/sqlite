@@ -14,7 +14,7 @@ on:
   # A person starts a run on a branch: gh workflow run crash.yml --ref <branch>
   workflow_dispatch:
   schedule:
-    - cron: "23 6 * * 2"
+    - cron: "39 6 * * 2"
 
 permissions:
   contents: read

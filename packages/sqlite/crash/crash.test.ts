@@ -27,7 +27,7 @@ const SIGNALS: readonly StopSignal[] = process.platform === "win32" ? ["SIGKILL"
 const DRAWS = 12;
 const RUN_MS = 60_000;
 const TEST_MS = 900_000;
-const RECORDS = process.env.CRASH_RECORDS;
+const RECORDS = process.env["CRASH_RECORDS"];
 
 type Facts = Record<string, unknown>;
 
@@ -152,7 +152,7 @@ async function runCase<S extends Scenario>(test: Case<S>): Promise<StopRun[]> {
     const entry: Facts = {
       scenario: test.scenario,
       node: process.versions.node,
-      sqlite: process.versions.sqlite,
+      sqlite: process.versions["sqlite"],
       seed: test.plan.seed,
       offset: test.offset ?? 0,
       stop,
@@ -426,7 +426,7 @@ describe("a stop in a salvage", () => {
           const line = writerLines(rerun.stdout).find((each) => "salvaged" in each);
           assert(line !== undefined && "salvaged" in line, `The rerun wrote no result.${outputOf(rerun)}`);
           const { read, added, duplicate, conflict, lost } = line.salvaged;
-          const before = facts.stored as number;
+          const before = facts["stored"] as number;
           assert(read === events && lost === 0, `The rerun read ${read} events and lost ${lost}, not ${events} and 0.`);
           assert(conflict === 0, `The rerun found ${conflict} conflicts: an event of the new log is not the event of the source.`);
           assert(added === events - before && duplicate === before, `The rerun added ${added} and found ${duplicate} duplicates, after ${before} events.`);

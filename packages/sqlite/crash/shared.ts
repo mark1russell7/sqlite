@@ -56,7 +56,7 @@ export function writerLines(stdout: string): WriterLine[] {
     if (!text.startsWith("{")) continue;
     try {
       const value = JSON.parse(text) as Record<string, unknown>;
-      if ((typeof value.mark === "string" && typeof value.ms === "number") || typeof value.salvaged === "object") lines.push(value as WriterLine);
+      if ((typeof value["mark"] === "string" && typeof value["ms"] === "number") || typeof value["salvaged"] === "object") lines.push(value as WriterLine);
     } catch {
       // A line that the writer did not write completely before its stop
     }
