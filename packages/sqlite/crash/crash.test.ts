@@ -334,15 +334,18 @@ describe("a stop in a checkpoint", () => {
   function checkedBlobs(db: DatabaseSync): number {
     const committed = committedTransactions(db, "blobs", size.rows);
     if (committed === 0) return 0;
-    // The variable keeps the statement during the read
-    const statement = db.prepare("SELECT tx, i, body FROM blobs");
-    for (const row of statement.iterate() as Iterable<{ tx: number; i: number; body: Uint8Array }>) {
-      const byte = row.tx % 251;
-      assert(row.body.length === size.bytes, `The blob ${row.tx} ${row.i} has ${row.body.length} of its ${size.bytes} bytes.`);
-      assert(
-        row.body.every((value) => value === byte),
-        `The blob ${row.tx} ${row.i} has a byte that is not ${byte}.`,
-      );
+    // The read of each transaction is 1 MiB, with no iterator. On Node.js 22.13, a collection during an iterate() can
+    // finalize the statement of the iterator.
+    const statement = db.prepare("SELECT i, body FROM blobs WHERE tx = ? ORDER BY i");
+    for (let tx = 0; tx < committed; tx++) {
+      const byte = tx % 251;
+      for (const row of statement.all(tx) as { i: number; body: Uint8Array }[]) {
+        assert(row.body.length === size.bytes, `The blob ${tx} ${row.i} has ${row.body.length} of its ${size.bytes} bytes.`);
+        assert(
+          row.body.every((value) => value === byte),
+          `The blob ${tx} ${row.i} has a byte that is not ${byte}.`,
+        );
+      }
     }
     return committed;
   }
