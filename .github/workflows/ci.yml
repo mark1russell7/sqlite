@@ -38,6 +38,12 @@ jobs:
       changesets: false
       release-check: false
 
+  # The crash suite of the home (crash.yml). It runs only when a pull request changes the home, the suite or the lock file.
+  crash:
+    uses: ./.github/workflows/crash.yml
+    permissions:
+      contents: read
+
   # Each preset of `pnpm package add` makes a package, and that package passes its typecheck and its tests.
   # The tests of the preset service hold its entry to describe() and lint() of @mark1russell7/service (OTH-5).
   # A test of the CLI compares this list with the presets of the CLI.
@@ -152,7 +158,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: ${{ !cancelled() }}
-    needs: [ci, oldest-node, presets, stamp]
+    needs: [ci, oldest-node, crash, presets, stamp]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
