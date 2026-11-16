@@ -1,5 +1,15 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.9
+
+This version changes only the README. The code and the API are the same as in 0.3.8.
+
+- The README has the section "What a power cut keeps". It gives the commits that each journal and `synchronous` setting kept in a power-cut test on LazyFS.
+- `FULL` and `EXTRA` kept each commit. With WAL, `NORMAL` kept the commits up to the last checkpoint. `OFF` kept no commit.
+- The row `synchronous` of the options table links to the section.
+
+Runtime dependencies: none.
+
 ## 0.3.8
 
 This version corrects the read of `salvageEventLog` on Node.js 22.13. The change is backward compatible.
