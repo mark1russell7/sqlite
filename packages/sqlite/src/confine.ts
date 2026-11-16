@@ -75,6 +75,8 @@ export class ConfineUnavailableError extends Error {
  *   file.
  * - A plain `VACUUM` works, and so does `clearDatabase`. A plain `VACUUM` attaches a temporary database with an empty
  *   name, and the guard lets this `ATTACH`.
+ * - An `ATTACH ''` stays in the temporary folder of SQLite. But a caller can fill this folder with a large temporary
+ *   database until the close. The guard does not limit the time or the size of the work of a caller. The host does.
  * - The guard also applies to the triggers and the views that a statement uses, because SQLite compiles them into the
  *   statement. A trigger runs with the authorizer of the connection that fires it. Thus confine each connection that runs
  *   the SQL of a caller.

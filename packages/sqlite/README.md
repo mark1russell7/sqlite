@@ -60,6 +60,8 @@ const rows = db.prepare(sqlOfTheCaller).all();
 - SQLite asks the guard when it compiles a statement. The guard sees the statement after the parse, so comments, case and quotes do not change the result.
 - A refused `ATTACH` or pragma throws, and `sqliteFault` gives the kind `authorization`. A refused `VACUUM INTO` throws before it makes a file.
 - A plain `VACUUM` and `clearDatabase` work. A plain `VACUUM` attaches a temporary database with an empty name, and the guard lets it.
+- An `ATTACH ''` stays in the temporary folder of SQLite. But a caller can fill this folder with a large temporary database until the close.
+- The guard does not limit the time or the size of the work of a caller. The host does.
 - A trigger runs with the guard of the connection that fires it. Confine each connection that runs the SQL of a caller.
 - A connection has one authorizer. The guard replaces an earlier authorizer, and `db.setAuthorizer(null)` removes the guard.
 - `snapshot` uses `VACUUM INTO`, so it needs a connection with no guard.
