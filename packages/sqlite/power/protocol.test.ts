@@ -19,7 +19,7 @@ import {
 
 const BATCH = 3;
 const logOf = (commits: number, extra = 0) => [...Array.from({ length: commits }, (_, at) => eventsOf(at + 1, BATCH)).flat(), ...eventsOf(commits + 1, BATCH).slice(0, extra)];
-const whole = (commits: number): Kept => ({ file: true, bytes: 4_096, opened: true, integrity: ["ok"], events: commits * BATCH, commits, problems: [] });
+const whole = (commits: number): Extract<Kept, { opened: true }> => ({ file: true, bytes: 4_096, opened: true, integrity: ["ok"], events: commits * BATCH, commits, problems: [] });
 
 describe("the settings of the writer", () => {
   it("go through the environment and come back the same", () => {

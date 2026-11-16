@@ -8,6 +8,11 @@ allowBuilds:
   esbuild: true
   # Its install script only checks the native package, which pnpm installs as an optional dependency.
   "@swc/core": false
+  # The power-cut test uses @mark1russell7/harness. Its Testcontainers reaches Docker through ssh2, which works
+  # without its optional native addon (cpu-features). The script of protobufjs only checks a version.
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
 
 # Our own packages: the release train updates them, so the release age check of pnpm does not apply to them.
 minimumReleaseAgeExclude:
