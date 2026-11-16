@@ -7,6 +7,8 @@
  * @packageDocumentation
  */
 
+import type { DatabaseSync } from "node:sqlite";
+
 /** The part of a `node:sqlite` connection that `confineToFile` uses. Node.js 24.10 and later have `setAuthorizer`. */
 export interface ConfinableDatabase {
   readonly setAuthorizer?:
@@ -84,11 +86,16 @@ export class ConfineUnavailableError extends Error {
  *   `db.setAuthorizer(null)` removes the guard.
  * - `snapshot` uses `VACUUM INTO`, so it needs a connection with no guard.
  *
- * @param db - The connection. A `DatabaseSync` of `node:sqlite` on Node.js 24.10 or later has `setAuthorizer`.
+ * @param db - The connection: a `DatabaseSync` of `node:sqlite`, or another value with the part `ConfinableDatabase`. A
+ *   `DatabaseSync` of Node.js 24.10 or later has `setAuthorizer`. The `DatabaseSync` type of `@types/node` 22 has no
+ *   `setAuthorizer`, and the parameter accepts it too.
  * @throws ConfineUnavailableError when the connection has no `setAuthorizer`. The SQL of the connection then stays without a
  *   guard, so do not run the SQL of a caller on it.
  */
-export function confineToFile(db: ConfinableDatabase): void {
-  if (typeof db.setAuthorizer !== "function") throw new ConfineUnavailableError();
-  db.setAuthorizer(decide);
+export function confineToFile(db: DatabaseSync | ConfinableDatabase): void {
+  // The `DatabaseSync` type of `@types/node` 22 has no member of `ConfinableDatabase`, so the type needs this cast. The
+  // check below reads the method at run time. The cast goes when the package needs Node.js 24.10 or later.
+  const connection = db as ConfinableDatabase;
+  if (typeof connection.setAuthorizer !== "function") throw new ConfineUnavailableError();
+  connection.setAuthorizer(decide);
 }

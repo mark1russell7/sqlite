@@ -66,6 +66,7 @@ const rows = db.prepare(sqlOfTheCaller).all();
 - A connection has one authorizer. The guard replaces an earlier authorizer, and `db.setAuthorizer(null)` removes the guard.
 - `snapshot` uses `VACUUM INTO`, so it needs a connection with no guard.
 - The guard needs `setAuthorizer` of Node.js 24.10 or later. On an earlier Node.js, `confineToFile` throws a `ConfineUnavailableError` (`code: "CONFINE_UNAVAILABLE"`). Then do not run the SQL of a caller.
+- The parameter takes a `DatabaseSync` of each version of `@types/node`. The `DatabaseSync` type of `@types/node` 22 has no `setAuthorizer`, and the check at run time decides.
 
 ### The statements of a text
 

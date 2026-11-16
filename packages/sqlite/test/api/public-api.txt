@@ -200,7 +200,7 @@ export declare class ConfineUnavailableError extends Error {
 }
 
 ### build/confine.d.ts#confineToFile
-export declare function confineToFile(db: ConfinableDatabase): void;
+export declare function confineToFile(db: DatabaseSync | ConfinableDatabase): void;
 
 ### build/connection.d.ts#SqlChanges
 export interface SqlChanges {

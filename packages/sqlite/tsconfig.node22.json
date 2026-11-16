@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "emitDeclarationOnly": false,
+    "declaration": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
+    "types": [
+      "node-22"
+    ],
+    "rootDir": "."
+  },
+  "include": [
+    "src/**/*",
+    "test/types/**/*"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/conformance.ts"
+  ]
+}

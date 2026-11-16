@@ -1,5 +1,15 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.6
+
+This version corrects the parameter type of `confineToFile`. The change is backward compatible.
+
+- `confineToFile` takes a `DatabaseSync` of each version of `@types/node`. Before, TypeScript refused the `DatabaseSync` of `@types/node` 22 with the error TS2559. That type has no `setAuthorizer`, so it had no member in common with `ConfinableDatabase`.
+- The parameter type is `DatabaseSync | ConfinableDatabase`. Each call that compiled before still compiles. The check at run time does not change.
+- The typecheck of the package also examines the source and a type test with `@types/node` 22 (`tsconfig.node22.json`). The type test gives a `DatabaseSync` of that version to each public function that takes a connection.
+
+Runtime dependencies: none.
+
 ## 0.3.5
 
 This version adds a guard for the SQL text of a caller, and a function that gives each statement of a text. The change is backward compatible.
