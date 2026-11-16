@@ -94,7 +94,7 @@ export interface Quarantined {
 }
 
 /** The files of a database, in the order of the move: the main file goes last. */
-const COMPANIONS = ["-wal", "-shm", "-journal", ""] as const;
+export const COMPANIONS = ["-wal", "-shm", "-journal", ""] as const;
 
 /**
  * This function moves a database file and its WAL, SHM and journal files into a new folder `<name>.broken-<time>`. Then a
@@ -109,19 +109,15 @@ const COMPANIONS = ["-wal", "-shm", "-journal", ""] as const;
 export function quarantine(path: string, options: QuarantineOptions = {}): Quarantined {
   const present = COMPANIONS.filter((suffix) => existsSync(path + suffix));
   if (present.length === 0) throw new Error(`There is no database file at ${path}.`);
-  const stamp = (options.now ?? new Date()).toISOString().replace(/\.\d+Z$/, "Z").replace(/[-:]/g, "");
-  const parent = options.folder ?? dirname(path);
-  const name = `${basename(path)}.broken-${stamp}`;
-  let folder = join(parent, name);
-  for (let n = 2; ; n++) {
+  const folder = quarantineFolder(path, options, (candidate) => {
     try {
-      mkdirSync(folder);
-      break;
+      mkdirSync(candidate);
+      return true;
     } catch (error) {
       if ((error as { code?: unknown }).code !== "EEXIST") throw error;
-      folder = join(parent, `${name}-${String(n)}`);
+      return false;
     }
-  }
+  });
   const files: string[] = [];
   try {
     for (const suffix of present) {
@@ -133,6 +129,20 @@ export function quarantine(path: string, options: QuarantineOptions = {}): Quara
     if (files.length === 0) rmdirSync(folder);
   }
   return { folder, database: present.includes("") ? join(folder, basename(path)) : undefined, files };
+}
+
+/**
+ * This function gives the folder `<name>.broken-<time>` of a quarantine, or `<name>.broken-<time>-<n>` when the name is
+ * in use. `take` tells if a name is free, and it can make the folder.
+ */
+export function quarantineFolder(path: string, options: QuarantineOptions, take: (folder: string) => boolean): string {
+  const stamp = (options.now ?? new Date()).toISOString().replace(/\.\d+Z$/, "Z").replace(/[-:]/g, "");
+  const parent = options.folder ?? dirname(path);
+  const name = `${basename(path)}.broken-${stamp}`;
+  for (let n = 1; ; n++) {
+    const folder = join(parent, n === 1 ? name : `${name}-${String(n)}`);
+    if (take(folder)) return folder;
+  }
 }
 
 /** The result of `openOrQuarantine`. `quarantined` and `fault` are there only when the first open found a broken file. */
@@ -335,25 +345,34 @@ export function snapshot(db: DatabaseSync, path: string): Snapshot {
   const temporary = `${path}.${randomUUID().slice(0, 8)}.tmp`;
   try {
     db.prepare("VACUUM INTO ?").run(temporary);
-    const fd = openSync(temporary, "r+");
-    try {
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
-    }
+    syncFile(temporary);
     renameSync(temporary, path);
   } catch (error) {
     rmSync(temporary, { force: true });
     throw error;
   }
-  if (process.platform !== "win32") {
-    // POSIX: a sync of the folder keeps the rename after a power cut. Windows has no sync of a folder.
-    const fd = openSync(dirname(path), "r");
-    try {
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
-    }
-  }
+  syncFolder(dirname(path));
   return { path, bytes: statSync(path).size };
+}
+
+/** This function writes the data of a file to the disk. */
+export function syncFile(path: string): void {
+  const fd = openSync(path, "r+");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** This function writes the entries of a folder to the disk, so a rename in the folder stays after a power cut. */
+export function syncFolder(path: string): void {
+  // Windows has no sync of a folder
+  if (process.platform === "win32") return;
+  const fd = openSync(path, "r");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
 }

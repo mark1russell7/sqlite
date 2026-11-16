@@ -20,6 +20,7 @@ describe("the entry", () => {
       "ensureProjection",
       "eventLog",
       "migrate",
+      "openCheckedEventLog",
       "openDatabase",
       "openEventLog",
       "openOrQuarantine",

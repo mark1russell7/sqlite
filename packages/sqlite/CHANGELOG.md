@@ -1,5 +1,19 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.7
+
+This version adds the checked open of an event log. The change is backward compatible.
+
+- `openCheckedEventLog(path, parse, options)` opens a log in its own file after an integrity check. The default check is `quick_check`.
+- The result is a tagged union with the kinds `created`, `opened`, `recovered` and `orphan-journal`. Its type is `CheckedEventLog`.
+- A broken file goes into quarantine, and a new file gets each readable event. The field `salvage` has the counts `kept` and `lost`.
+- A WAL, SHM or journal file with no database file goes into quarantine. The function does not put that WAL into a new file.
+- Each step of the recovery can be done again. The record `<path>.recovery.json` keeps the quarantine folder and the counts across a crash.
+- A test stops the recovery after each step and opens the file again. The events and the quarantine are the same as after a recovery with no stop.
+- The types `CheckedEventLogOptions`, `RecoveryCause` and `SalvageCounts` are new.
+
+Runtime dependencies: none.
+
 ## 0.3.6
 
 This version corrects the parameter type of `confineToFile`. The change is backward compatible.
