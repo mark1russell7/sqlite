@@ -2,6 +2,8 @@
  * The scale bench (roadmap SQ-26) and its children share these parts. They are the measures, the events of the bench log
  * and the format of a record.
  */
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { LogRecord } from "../src/index.ts";
 
 /** The measures of the scale bench. Each measure is one case of the fresh runner, so each round starts a fresh child. */
@@ -20,6 +22,35 @@ export const MEASURE_TEXT: Readonly<Record<Measure, { readonly unit: string; rea
   count: { unit: "ms", describe: "count() of the events of the log." },
   recovery: { unit: "ms", describe: "openEventLog and head() after a SIGKILL that left 3500 events in the WAL file." },
   "quick-check": { unit: "ms", describe: "checkIntegrity with quick: true on the whole file." },
+};
+
+/**
+ * The classes of growth. The claim of a class is the largest growth of the cost for 10 times the events, on one runner.
+ * - A flat cost has a growth of 2 times or less: an exponent of 0.3. A cost that grows as a logarithm stays in this class.
+ * - A linear cost has a growth of 20 times or less: an exponent of 1.3. A cost that grows as n log n stays in this class.
+ * A cost that grows as the square root of n is beyond the flat class, and a quadratic cost is beyond the linear class.
+ */
+export const GROWTH_CLASSES = {
+  flat: { maxGrowth: 2, describe: "at most 2 times for 10 times the events" },
+  linear: { maxGrowth: 20, describe: "at most 20 times for 10 times the events" },
+} as const satisfies Readonly<Record<string, { readonly maxGrowth: number; readonly describe: string }>>;
+
+/** The name of one class of growth. */
+export type GrowthClass = keyof typeof GROWTH_CLASSES;
+
+/**
+ * The class of growth of each measure. A read, an append, an open and a recovery do not scan the log, so their cost is
+ * flat. A count, a quick check and a migration that builds an index scan each event, so their cost is linear.
+ */
+export const MEASURE_GROWTH: Readonly<Record<Measure, GrowthClass>> = {
+  append: "flat",
+  "read-after": "flat",
+  get: "flat",
+  open: "flat",
+  migrate: "linear",
+  count: "linear",
+  recovery: "flat",
+  "quick-check": "linear",
 };
 
 /** The sizes of the rungs of the ladder: 10^3 to 10^7 events. One event takes approximately 1 KiB, so the files are 1 MB to 10 GB. */
@@ -79,7 +110,7 @@ export function parseScaleEvent(value: unknown): ScaleEvent {
 }
 
 /** The format name of the record of one rung. It changes when a reader of an older form cannot read the data. */
-export const SCALE_FORMAT = "sqlite-scale/1";
+export const SCALE_FORMAT = "sqlite-scale/2";
 
 /** The values of one measure in one job: the rounds of the first arm and of its A/A copy, in ms. */
 export interface MeasureValues {
@@ -100,11 +131,16 @@ export interface Built {
   readonly bytes: number;
 }
 
-/** The record of one rung in one job. The job of the limits reads the records of 5 jobs or more. */
+/** The record of one rung in one job. The growth gate compares the rungs of each runner. */
 export interface ScaleRecord {
   readonly format: typeof SCALE_FORMAT;
   readonly events: number;
   readonly job: string;
+  /**
+   * The runner of the job, unique in the run and its attempts. Each job measures all its rungs on one runner, so the
+   * records with the same runner come from one computer. The format 2 adds this field.
+   */
+  readonly runner: string;
   readonly commit: string;
   readonly at: string;
   readonly node: string;
@@ -118,4 +154,15 @@ export interface ScaleRecord {
   readonly real: readonly string[];
   /** What the run made up. */
   readonly synthetic: readonly string[];
+}
+
+/** This function reads each record of the format `SCALE_FORMAT` in a folder and its subfolders. It skips the other JSON files. */
+export function readRecords(folder: string): ScaleRecord[] {
+  const records: ScaleRecord[] = [];
+  for (const file of readdirSync(folder, { recursive: true, encoding: "utf8" })) {
+    if (!file.endsWith(".json")) continue;
+    const value = JSON.parse(readFileSync(join(folder, file), "utf8")) as Partial<ScaleRecord>;
+    if (value.format === SCALE_FORMAT) records.push(value as ScaleRecord);
+  }
+  return records;
 }
