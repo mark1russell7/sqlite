@@ -229,26 +229,29 @@ describe("salvageEventLog", () => {
     target.close();
   });
 
-  it("reads each event when a garbage collection comes during the read", () => {
-    // On Node.js 22.13, a collection during StatementSync.iterate() finalized the statement of the iterator
+  it("reads each event when a garbage collection comes during a long read", { timeout: 60_000 }, () => {
+    // On Node.js 22.13, a collection during StatementSync.iterate() can finalize the statement of the iterator. The
+    // read loop must be long, so that V8 optimizes it: optimized code does not keep a value that no code reads later.
     setFlagsFromString("--expose-gc");
     const collect = runInNewContext("gc") as () => void;
     expect(typeof collect).toBe("function");
-    const total = 3000;
+    const total = 50_000;
     const source = openEventLog(file, parse);
     source.appendAll(Array.from({ length: total }, (_, n) => ({ id: `e${String(n + 1)}`, at: "2026-11-16T00:00:00Z", type: "ack", pad: "" })));
     source.close();
     let parsed = 0;
     const collecting = (value: unknown): Padded => {
       parsed++;
-      if (parsed % 50 === 0) collect();
+      if (parsed % 1000 === 0) collect();
       return parse(value);
     };
-    const target = openEventLog(":memory:", parse);
-    const result = salvageEventLog(file, target, { parse: collecting });
-    expect(result).toEqual({ read: total, added: total, duplicate: 0, conflict: 0, lost: 0, problems: [] });
-    expect(target.count()).toBe(total);
-    target.close();
+    for (let round = 0; round < 2; round++) {
+      const target = openEventLog(":memory:", parse);
+      const result = salvageEventLog(file, target, { parse: collecting });
+      expect(result).toEqual({ read: total, added: total, duplicate: 0, conflict: 0, lost: 0, problems: [] });
+      expect(target.count()).toBe(total);
+      target.close();
+    }
   });
 
   it("counts an event that does not parse as lost", () => {
