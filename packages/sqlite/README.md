@@ -67,6 +67,24 @@ const rows = db.prepare(sqlOfTheCaller).all();
 - `snapshot` uses `VACUUM INTO`, so it needs a connection with no guard.
 - The guard needs `setAuthorizer` of Node.js 24.10 or later. On an earlier Node.js, `confineToFile` throws a `ConfineUnavailableError` (`code: "CONFINE_UNAVAILABLE"`). Then do not run the SQL of a caller.
 
+### The statements of a text
+
+The function `prepare` of `node:sqlite` compiles only the first statement of a text. It ignores the rest with no error. `eachStatement` gives each statement of the text in turn:
+
+```ts
+import { eachStatement } from "@mark1russell7/sqlite";
+
+for (const statement of eachStatement(db, "CREATE TABLE t (x); INSERT INTO t VALUES (1); SELECT x FROM t")) {
+  console.log(statement.all());
+}
+```
+
+- Run each statement before you ask for the next one. The next statement compiles against the database after that run.
+- When a statement does not compile, the iteration throws. Each earlier statement that ran stays done. Run the text in a transaction to get all or nothing.
+- SQLite finds the end of each statement. Thus a `;` in a string, a quoted name, a comment or the body of a trigger does not end a statement.
+- The function skips the spaces, the comments and the empty statements between two statements. A block comment with no end goes to the end of the text, as in SQLite.
+- On a connection with `confineToFile`, the guard refuses a statement when it compiles. The statements before it stay done.
+
 ## Migrations
 
 `migrate` does the steps that a file does not have. The `user_version` of the file is the count of steps that it has. A step is SQL text or a function.

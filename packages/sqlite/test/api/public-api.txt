@@ -47,6 +47,7 @@ type SalvageOptions: build/recovery.d.ts#SalvageOptions
 type Salvaged: build/recovery.d.ts#Salvaged
 SchemaError: build/schema.d.ts#SchemaError
 type Snapshot: build/recovery.d.ts#Snapshot
+type SourcedStatement: build/statements.d.ts#SourcedStatement
 type SqlChanges: build/connection.d.ts#SqlChanges
 type SqlConnection: build/connection.d.ts#SqlConnection
 type SqlJsConnection: build/sqljs.d.ts#SqlJsConnection
@@ -61,6 +62,7 @@ type SqliteFaultKind: build/faults.d.ts#SqliteFaultKind
 type StandardIssue: build/schema.d.ts#StandardIssue
 type StandardResult: build/schema.d.ts#StandardResult
 type StandardSchema: build/schema.d.ts#StandardSchema
+type StatementSource: build/statements.d.ts#StatementSource
 type Synchronous: build/database.d.ts#Synchronous
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
@@ -74,6 +76,7 @@ checkIntegrity: build/recovery.d.ts#checkIntegrity
 checkpoint: build/checkpoint.d.ts#checkpoint
 clearDatabase: build/clear.d.ts#clearDatabase
 confineToFile: build/confine.d.ts#confineToFile
+eachStatement: build/statements.d.ts#eachStatement
 ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
@@ -560,6 +563,19 @@ export type SqlJsValue = null | number | string | Uint8Array;
 
 ### build/sqljs.d.ts#sqlJsConnection
 export declare function sqlJsConnection(db: SqlJsDatabase): SqlJsConnection;
+
+### build/statements.d.ts#SourcedStatement
+export interface SourcedStatement {
+  readonly sourceSQL: string;
+}
+
+### build/statements.d.ts#StatementSource
+export interface StatementSource<S extends SourcedStatement> {
+  prepare(sql: string): S;
+}
+
+### build/statements.d.ts#eachStatement
+export declare function eachStatement<S extends SourcedStatement>(db: StatementSource<S>, sql: string): Generator<S, void, undefined>;
 
 ### build/transaction.d.ts#Nested
 export type Nested = "refuse" | "savepoint";

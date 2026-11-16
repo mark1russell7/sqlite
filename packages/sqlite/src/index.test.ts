@@ -16,6 +16,7 @@ describe("the entry", () => {
       "checkpoint",
       "clearDatabase",
       "confineToFile",
+      "eachStatement",
       "ensureProjection",
       "eventLog",
       "migrate",
