@@ -1,0 +1,116 @@
+# The crash suite of the home (packages/sqlite/crash, roadmap SQ-25). Seeded stop plans of @mark1russell7/rigor-chaos
+# stop a writer process in a transaction, a migration step, a checkpoint and a salvage. After each stop, the suite opens
+# the file again and examines it. Then a rerun with no stop completes the work, and the suite examines the file again.
+# The suite starts many processes, and its stops at a time depend on the load. Thus it runs only in CI.
+#
+# ci.yml calls this workflow, so the check CI OK of the ruleset needs it. The job changes examines the changed files of a
+# pull request. The suite runs only when the code of the home, the suite, the lock file or this file changed. A push or a
+# release does not repeat it: the pull request of the change ran it. The schedule runs it on main each week, because a
+# new Node.js can bring a new SQLite. Each run uploads the record of each stop as an artifact.
+name: Crash
+
+on:
+  workflow_call:
+  # A person starts a run on a branch: gh workflow run crash.yml --ref <branch>
+  workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crash-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # release.yml calls ci.yml with only "contents: read". Thus this job reads the changed files with git, not with the
+  # API of pull requests: a nested job with more permissions stops the release run.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Examine the changed files
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          WORKFLOW: ${{ github.workflow }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # A manual run of this file and the weekly run always run the suite
+          if [ "$EVENT" = schedule ] || { [ "$EVENT" = workflow_dispatch ] && [ "$WORKFLOW" = "Crash" ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT" != pull_request ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "A push or a release does not repeat the crash suite. The pull request of the change ran it." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files="$(git diff --name-only "$BASE" "$GITHUB_SHA")"
+          if echo "$files" | grep -qxE 'packages/sqlite/(src|crash)/.*|packages/sqlite/package\.json|packages/sqlite/vitest\.crash\.config\.ts|pnpm-lock\.yaml|\.github/workflows/crash\.yml'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No code of the home, file of the suite, lock file or crash workflow changed, so the suite did not run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  crash:
+    name: Crash suite (node ${{ matrix.node }})
+    needs: changes
+    if: ${{ needs.changes.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      # The runners are shared by all repositories of the account (the rule runner-budget)
+      max-parallel: 3
+      matrix:
+        # 22.13 is the first Node.js with node:sqlite and no flag. Each Node.js brings its own SQLite.
+        node: ["22.13", "24", "26"]
+    env:
+      CRASH_RECORDS: ${{ runner.temp }}/crash-records.jsonl
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @mark1russell7/sqlite run test:crash
+      - name: The count of the stops of each scenario
+        if: ${{ !cancelled() }}
+        run: |
+          if [ ! -s "$CRASH_RECORDS" ]; then
+            echo "The suite wrote no record." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "| Scenario | Stops | Passed |"
+            echo "| --- | --- | --- |"
+            jq -s -r 'map(select(has("stop"))) | group_by(.scenario)[] | "| \(.[0].scenario) | \(length) | \(map(select(.pass == true)) | length) |"' "$CRASH_RECORDS"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: crash-records-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/crash-records.jsonl
+          if-no-files-found: warn
+          retention-days: 14
