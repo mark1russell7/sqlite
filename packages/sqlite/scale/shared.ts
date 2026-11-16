@@ -22,10 +22,10 @@ export const MEASURE_TEXT: Readonly<Record<Measure, { readonly unit: string; rea
   "quick-check": { unit: "ms", describe: "checkIntegrity with quick: true on the whole file." },
 };
 
-/** The sizes of the rungs of the ladder: 10^3 to 10^7 events. One event takes about 1 KiB, so the files are 1 MB to 10 GB. */
+/** The sizes of the rungs of the ladder: 10^3 to 10^7 events. One event takes approximately 1 KiB, so the files are 1 MB to 10 GB. */
 export const RUNG_EVENTS: readonly number[] = [1e3, 1e4, 1e5, 1e6, 1e7];
 
-/** The count of characters of the padding of each event. With its other fields, one event takes about 1 KiB in the file. */
+/** The count of characters of the padding of each event. With its other fields, one event takes approximately 1 KiB in the file. */
 export const PAD_CHARS = 900;
 
 /** The count of events of the append of the measure `append`. */
@@ -37,7 +37,7 @@ export const READS = 200;
 /** The count of events of each read of the measure `read-after`. */
 export const READ_LIMIT = 100;
 
-/** The count of events that the writer of the measure `recovery` leaves in the WAL file: about 3.5 MiB, under the default checkpoint limit of 1000 pages. */
+/** The count of events that the writer of the measure `recovery` leaves in the WAL file. They take approximately 3.5 MiB, under the default checkpoint limit of 1000 pages. */
 export const RECOVERY_EVENTS = 3500;
 
 /** The count of events of each transaction of the build of a file. */

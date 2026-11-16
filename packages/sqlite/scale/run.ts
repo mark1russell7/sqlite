@@ -2,7 +2,7 @@
  * The driver of one rung of the scale bench (roadmap SQ-26). The workflow `scale.yml` starts it in CI:
  * `node scale/run.ts --events <n> --rounds <r> --job <k> --dir <folder> --out <file>`.
  *
- * It builds a log of `n` events, and then the fresh runner of `@mark1russell7/rigor-bench` starts a child for each measure
+ * It builds a log of `n` events. Then the fresh runner of `@mark1russell7/rigor-bench` starts a child for each measure
  * and round, in two arms of one build. It writes the record of the rung to `--out` and a table to the summary of the job.
  */
 import { appendFileSync, mkdirSync, rmSync, statfsSync, statSync, writeFileSync } from "node:fs";
