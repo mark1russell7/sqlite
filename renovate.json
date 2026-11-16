@@ -5,5 +5,14 @@
   ],
   "schedule": [
     "before 6am on sunday"
+  ],
+  "packageRules": [
+    {
+      "description": "The type test of the floor of @types/node (tsconfig.node22.json) needs the types of Node.js 22.",
+      "matchDepNames": [
+        "@types/node-22"
+      ],
+      "allowedVersions": "<23"
+    }
   ]
 }
