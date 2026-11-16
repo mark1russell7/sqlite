@@ -82,9 +82,10 @@ jobs:
       matrix:
         # 22.13 is the first Node.js with node:sqlite and no flag. Each Node.js brings its own SQLite.
         node: ["22.13", "24", "26"]
-    env:
-      CRASH_RECORDS: ${{ runner.temp }}/crash-records.jsonl
     steps:
+      # The env of a job has no runner context, so a step gives the path of the records to the later steps
+      - name: The path of the records
+        run: echo "CRASH_RECORDS=$RUNNER_TEMP/crash-records.jsonl" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
