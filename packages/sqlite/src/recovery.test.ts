@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "./database.ts";
 import { eventLog, type EventLog, type LogRecord } from "./event-log.ts";
@@ -224,6 +226,28 @@ describe("salvageEventLog", () => {
     expect(result.added + result.lost).toBe(COUNT);
     expect(result.lost).toBeGreaterThan(0);
     expect(result.problems.some((problem) => problem.includes("end of the log is not known"))).toBe(false);
+    target.close();
+  });
+
+  it("reads each event when a garbage collection comes during the read", () => {
+    // On Node.js 22.13, a collection during StatementSync.iterate() finalized the statement of the iterator
+    setFlagsFromString("--expose-gc");
+    const collect = runInNewContext("gc") as () => void;
+    expect(typeof collect).toBe("function");
+    const total = 3000;
+    const source = openEventLog(file, parse);
+    source.appendAll(Array.from({ length: total }, (_, n) => ({ id: `e${String(n + 1)}`, at: "2026-11-16T00:00:00Z", type: "ack", pad: "" })));
+    source.close();
+    let parsed = 0;
+    const collecting = (value: unknown): Padded => {
+      parsed++;
+      if (parsed % 50 === 0) collect();
+      return parse(value);
+    };
+    const target = openEventLog(":memory:", parse);
+    const result = salvageEventLog(file, target, { parse: collecting });
+    expect(result).toEqual({ read: total, added: total, duplicate: 0, conflict: 0, lost: 0, problems: [] });
+    expect(target.count()).toBe(total);
     target.close();
   });
 
