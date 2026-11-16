@@ -52,8 +52,7 @@ function skipEmpty(sql: string, from: number): number {
  *   so `CREATE TABLE t (x); INSERT INTO t VALUES (1)` works.
  * - When a statement does not compile, the iteration throws the error of `prepare`. Each earlier statement that ran stays
  *   done. Run the text in a transaction to get all or nothing.
- * - A `;` in a string, a quoted name, a comment or the body of a trigger does not end a statement, because SQLite finds
- *   the end.
+ * - A `;` in a string, a quoted name, a comment or the body of a trigger does not end a statement. SQLite finds the end.
  * - The function skips the spaces, the comments and the empty statements between two statements. A text with no
  *   statement gives no statement, and the function does not call `prepare`.
  * - A block comment with no end goes to the end of the text, as in SQLite.
