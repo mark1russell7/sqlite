@@ -14,6 +14,8 @@ type CheckpointMode: build/checkpoint.d.ts#CheckpointMode
 type Checkpointed: build/checkpoint.d.ts#Checkpointed
 type ClearOptions: build/clear.d.ts#ClearOptions
 type ColumnDefinitions: build/migrate.d.ts#ColumnDefinitions
+type ConfinableDatabase: build/confine.d.ts#ConfinableDatabase
+ConfineUnavailableError: build/confine.d.ts#ConfineUnavailableError
 EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
 type Equal: build/event-log.d.ts#Equal
 type EventLog: build/event-log.d.ts#EventLog
@@ -71,6 +73,7 @@ addMissingColumns: build/migrate.d.ts#addMissingColumns
 checkIntegrity: build/recovery.d.ts#checkIntegrity
 checkpoint: build/checkpoint.d.ts#checkpoint
 clearDatabase: build/clear.d.ts#clearDatabase
+confineToFile: build/confine.d.ts#confineToFile
 ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
 migrate: build/migrate.d.ts#migrate
@@ -180,6 +183,21 @@ export interface ClearOptions {
 
 ### build/clear.d.ts#clearDatabase
 export declare function clearDatabase(db: SqlConnection, options?: ClearOptions): string[];
+
+### build/confine.d.ts#ConfinableDatabase
+export interface ConfinableDatabase {
+  readonly setAuthorizer?: ((callback: ((actionCode: number, arg1: string | null, arg2: string | null, dbName: string | null, triggerOrView: string | null) => number) | null) => void) | undefined;
+}
+
+### build/confine.d.ts#ConfineUnavailableError
+export declare class ConfineUnavailableError extends Error {
+  override readonly name = "ConfineUnavailableError";
+  readonly code = "CONFINE_UNAVAILABLE";
+  constructor();
+}
+
+### build/confine.d.ts#confineToFile
+export declare function confineToFile(db: ConfinableDatabase): void;
 
 ### build/connection.d.ts#SqlChanges
 export interface SqlChanges {

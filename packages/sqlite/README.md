@@ -39,6 +39,32 @@ const db = openDatabase("catalog.db", { readOnly: true, busyTimeoutMs: 5000 });
 - `readOnly` with `wal: true` or `makeFolder: true` is an error, because both change the disk.
 - With `wal: "when-writable"`, the open sets WAL when it can. On a file that the process cannot write, the connection reads the file, and each write throws.
 
+### The SQL of a caller
+
+A host that runs the SQL text of a caller controls the path of the database. But SQL text can name other files:
+
+- `ATTACH` opens or makes a file at a path.
+- `VACUUM INTO` writes a copy of the database to a path, also on a `readOnly` connection.
+- The pragmas `temp_store_directory` and `data_store_directory` set a folder for the files of SQLite. The first one applies to each connection of the process.
+
+`confineToFile` keeps the SQL of a connection on its file. It refuses these statements and the function `load_extension`:
+
+```ts
+import { confineToFile, openDatabase } from "@mark1russell7/sqlite";
+
+const db = openDatabase(checkedPath, { wal: false, busyTimeoutMs: 5000 });
+confineToFile(db);
+const rows = db.prepare(sqlOfTheCaller).all();
+```
+
+- SQLite asks the guard when it compiles a statement. The guard sees the statement after the parse, so comments, case and quotes do not change the result.
+- A refused `ATTACH` or pragma throws, and `sqliteFault` gives the kind `authorization`. A refused `VACUUM INTO` throws before it makes a file.
+- A plain `VACUUM` and `clearDatabase` work. A plain `VACUUM` attaches a temporary database with an empty name, and the guard lets it.
+- A trigger runs with the guard of the connection that fires it. Confine each connection that runs the SQL of a caller.
+- A connection has one authorizer. The guard replaces an earlier authorizer, and `db.setAuthorizer(null)` removes the guard.
+- `snapshot` uses `VACUUM INTO`, so it needs a connection with no guard.
+- The guard needs `setAuthorizer` of Node.js 24.10 or later. On an earlier Node.js, `confineToFile` throws a `ConfineUnavailableError` (`code: "CONFINE_UNAVAILABLE"`). Then do not run the SQL of a caller.
+
 ## Migrations
 
 `migrate` does the steps that a file does not have. The `user_version` of the file is the count of steps that it has. A step is SQL text or a function.

@@ -46,6 +46,7 @@ export { SchemaError, type Parse, type StandardIssue, type StandardResult, type 
 export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";
 export { checkpoint, type CheckpointDatabase, type CheckpointMode, type Checkpointed } from "./checkpoint.ts";
 export { clearDatabase, type ClearOptions } from "./clear.ts";
+export { type ConfinableDatabase, ConfineUnavailableError, confineToFile } from "./confine.ts";
 export { sqlJsConnection, type SqlJsConnection, type SqlJsDatabase, type SqlJsStatement, type SqlJsValue } from "./sqljs.ts";
 export {
   checkIntegrity,

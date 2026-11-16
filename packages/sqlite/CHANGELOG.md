@@ -1,5 +1,17 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.5
+
+This version adds a guard for the SQL text of a caller. The change is backward compatible.
+
+- `confineToFile(db)` keeps the SQL of a `node:sqlite` connection on its file. It refuses `ATTACH` of a file, `VACUUM INTO`, the pragmas `temp_store_directory` and `data_store_directory`, and the function `load_extension`.
+- Each other statement runs as before. A plain `VACUUM` and `clearDatabase` also work.
+- The guard is the authorizer of SQLite, so it sees the statement after the parse. Comments, case and quotes do not change the result.
+- The guard needs `setAuthorizer` of Node.js 24.10 or later. On an earlier Node.js, `confineToFile` throws the new `ConfineUnavailableError` (`code: "CONFINE_UNAVAILABLE"`). The package still runs on Node.js 22.13.
+- The type `ConfinableDatabase` is the part of a connection that the guard uses.
+
+Runtime dependencies: none.
+
 ## 0.3.4
 
 This version runs on Node.js 22.13 or later, and the adapter of sql.js operates after a save. The change is backward compatible.
