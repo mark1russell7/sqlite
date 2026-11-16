@@ -10,7 +10,10 @@ This version adds the checked open of an event log. The change is backward compa
 - A WAL, SHM or journal file with no database file goes into quarantine. The function does not put that WAL into a new file.
 - Each step of the recovery can be done again. The record `<path>.recovery.json` keeps the quarantine folder and the counts across a crash.
 - A test stops the recovery after each step and opens the file again. The events and the quarantine are the same as after a recovery with no stop.
-- The types `CheckedEventLogOptions`, `RecoveryCause` and `SalvageCounts` are new.
+- `listRecoveries(path)` gives each recovery from the records in the quarantine folders, in the sequence of `at` and then of `id`.
+- The `id` of an entry is the name of its quarantine folder. A caller can report each recovery at each start with this id, and a grow-only log keeps one report.
+- A folder with no record, or with a record that does not parse, gives an entry of the kind `no-read`. A recovery that is not complete is not in the list.
+- The types `CheckedEventLogOptions`, `RecoveryCause`, `RecoveryEntry` and `SalvageCounts` are new.
 
 Runtime dependencies: none.
 

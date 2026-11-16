@@ -19,6 +19,7 @@ describe("the entry", () => {
       "eachStatement",
       "ensureProjection",
       "eventLog",
+      "listRecoveries",
       "migrate",
       "openCheckedEventLog",
       "openDatabase",

@@ -374,6 +374,7 @@ A power cut, a bad disk or a copy of an open file can break a file. These functi
 | `salvageEventLog(source, log, { parse })` | It reads the readable events of a broken log, and appends them to a new log. |
 | `snapshot(db, path)` | It writes a consistent copy of an open database with `VACUUM INTO`, and then replaces the file at the path. |
 | `openCheckedEventLog(path, parse)` | It opens a log after a check of its file. It recovers a broken file in steps that a crash does not break. |
+| `listRecoveries(path)` | It gives each recovery of `openCheckedEventLog` from the records in the quarantine folders. |
 
 ```ts
 import { checkIntegrity, eventLog, IntegrityError, openDatabase, openOrQuarantine, salvageEventLog } from "@mark1russell7/sqlite";
@@ -438,6 +439,24 @@ The recovery has four steps, and each step can be done again:
 - The read-only salvage can leave an empty WAL and SHM file next to the broken file. These files also go into quarantine.
 - After a crash, the `cause` of a fault comes from the record. Its `error` is a new `Error` with the message of SQLite.
 - Only one process at a time can recover a file.
+
+`listRecoveries(path)` gives each recovery from the records in the quarantine folders. A caller can report each recovery at each start:
+
+```ts
+import { listRecoveries } from "@mark1russell7/sqlite";
+
+for (const entry of listRecoveries("data/events.db")) {
+  if (entry.kind === "no-read") report(entry.problem);
+  else log.append({ id: `recovered:${entry.id}`, at: entry.at, type: entry.kind, lost: entry.kind === "recovered" ? entry.salvage.lost : 0 });
+}
+```
+
+- `id` is the name of the quarantine folder. It stays the same when the data folder moves, so a report with this id is the same report at each start.
+- Make the report only from the fields that do not change, for example `id`, `at` and the counts. The log gives a conflict for one id with a different body.
+- A stop after the open and before the report of the caller does not lose the report. The next start reports it.
+- The entries are in the sequence of `at`, and then of `id`. The option `folder` reads the quarantine folders of a different folder.
+- A folder with no record, or with a record that does not parse, gives an entry of the kind `no-read` with its `problem`. These entries go last.
+- A recovery that is not complete is not in the list. The next open completes it, and then the list has it.
 
 ## The portable entry
 

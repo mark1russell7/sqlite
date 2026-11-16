@@ -5,7 +5,7 @@
  *
  * @packageDocumentation
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { openDatabase } from "./database.ts";
@@ -16,6 +16,7 @@ import {
   checkIntegrity,
   COMPANIONS,
   IntegrityError,
+  messageOf,
   quarantineFolder,
   salvageEventLog,
   syncFile,
@@ -68,6 +69,22 @@ export type CheckedEventLog<E extends LogRecord> =
     }
   | { readonly kind: "orphan-journal"; readonly log: EventLogFile<E>; readonly quarantined: Quarantined };
 
+/**
+ * One recovery of `openCheckedEventLog`, from the record in its quarantine folder. The value of `kind` tells what the
+ * record holds:
+ *
+ * - `recovered`: the recovery of a broken file, with its cause and the counts of its salvage.
+ * - `orphan-journal`: the quarantine of a WAL, SHM or journal file with no database file.
+ * - `no-read`: a folder with no record, or with a record that does not parse. `problem` tells why.
+ *
+ * `id` is the name of the quarantine folder. It stays the same when the data folder moves, so it is the stable id of
+ * the recovery. `at` is the time of the recovery, and `folder` is the path of the folder at the read.
+ */
+export type RecoveryEntry =
+  | { readonly kind: "recovered"; readonly id: string; readonly folder: string; readonly at: string; readonly cause: RecoveryCause; readonly salvage: SalvageCounts }
+  | { readonly kind: "orphan-journal"; readonly id: string; readonly folder: string; readonly at: string }
+  | { readonly kind: "no-read"; readonly id: string; readonly folder: string; readonly problem: string };
+
 /** The format of the record of a recovery. */
 const RECORD_FORMAT = "sqlite-recovery/1";
 
@@ -81,8 +98,8 @@ type StoredCause =
 
 /** The record of a recovery. It marks a complete salvage, and it keeps the folder of the quarantine. */
 type RecoveryRecord =
-  | { readonly format: typeof RECORD_FORMAT; readonly kind: "recovered"; readonly folder: string; readonly cause: StoredCause; readonly salvage: SalvageCounts }
-  | { readonly format: typeof RECORD_FORMAT; readonly kind: "orphan-journal"; readonly folder: string };
+  | { readonly format: typeof RECORD_FORMAT; readonly kind: "recovered"; readonly folder: string; readonly at: string; readonly cause: StoredCause; readonly salvage: SalvageCounts }
+  | { readonly format: typeof RECORD_FORMAT; readonly kind: "orphan-journal"; readonly folder: string; readonly at: string };
 
 /** This function gives the path of the salvage file of a database file. */
 const salvageOf = (path: string): string => `${path}.salvage-tmp`;
@@ -119,8 +136,11 @@ export function openCheckedEventLog<E extends LogRecord>(path: string, parse: Pa
  * @param seam - The function that gets the name of each step after the step.
  */
 export function openCheckedEventLogWith<E extends LogRecord>(path: string, parse: Parse<E>, options: CheckedEventLogOptions<E>, seam: (step: string) => void): CheckedEventLog<E> {
-  const { check = { quick: true }, quarantine: where = {}, ...logOptions } = options;
+  const { check = { quick: true }, quarantine: given = {}, ...logOptions } = options;
   if (path === ":memory:" || path === "") return { kind: "created", log: openEventLog(path, parse, logOptions) };
+  // One time gives the name of the folder and the time of the record
+  const where = { ...given, now: given.now ?? new Date() };
+  const at = where.now.toISOString();
   const readOnly = logOptions.readOnly === true;
   if (existsSync(recordOf(path))) {
     if (readOnly) throw new Error(`The recovery of ${path} is not complete. An open without readOnly completes it.`);
@@ -133,7 +153,7 @@ export function openCheckedEventLogWith<E extends LogRecord>(path: string, parse
 
   if (!present.includes("")) {
     if (readOnly) throw new IntegrityError([`The path ${path} has no database file, but it has ${present.map((suffix) => basename(path) + suffix).join(", ")}.`]);
-    const record: RecoveryRecord = { format: RECORD_FORMAT, kind: "orphan-journal", folder: freeFolder(path, where) };
+    const record: RecoveryRecord = { format: RECORD_FORMAT, kind: "orphan-journal", folder: freeFolder(path, where), at };
     writeRecord(path, record);
     seam("recorded");
     return finish(path, parse, logOptions, record, seam);
@@ -162,7 +182,7 @@ export function openCheckedEventLogWith<E extends LogRecord>(path: string, parse
   syncFile(salvage);
 
   // Step 2: the record marks the salvage complete
-  const record: RecoveryRecord = { format: RECORD_FORMAT, kind: "recovered", folder: freeFolder(path, where), cause: storedCause(first.cause), salvage: counts };
+  const record: RecoveryRecord = { format: RECORD_FORMAT, kind: "recovered", folder: freeFolder(path, where), at, cause: storedCause(first.cause), salvage: counts };
   writeRecord(path, record);
   seam("recorded");
   const result = finish(path, parse, logOptions, record, seam);
@@ -267,13 +287,104 @@ function writeRecord(path: string, record: RecoveryRecord): void {
 
 /** This function reads the record of a recovery, and refuses a record that it does not know. */
 function readRecord(file: string): RecoveryRecord {
-  const value: unknown = JSON.parse(readFileSync(file, "utf8"));
-  if (typeof value === "object" && value !== null) {
-    const record = value as Record<string, unknown>;
-    const kind = record["kind"];
-    if (record["format"] === RECORD_FORMAT && typeof record["folder"] === "string" && (kind === "recovered" || kind === "orphan-journal")) return value as RecoveryRecord;
+  const text = readFileSync(file, "utf8");
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`The recovery record ${file} is not valid JSON: ${messageOf(error)}`);
   }
+  if (isRecoveryRecord(value)) return value;
   throw new Error(`The recovery record ${file} has a format that this version does not know.`);
+}
+
+/** This function tells if a value is an object, and not `null` or a list. */
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** This function tells if a parsed value has each field of a record of a recovery. */
+function isRecoveryRecord(value: unknown): value is RecoveryRecord {
+  if (!isObject(value) || value["format"] !== RECORD_FORMAT || typeof value["folder"] !== "string" || typeof value["at"] !== "string") return false;
+  if (value["kind"] === "orphan-journal") return true;
+  if (value["kind"] !== "recovered") return false;
+  const cause = value["cause"];
+  const salvage = value["salvage"];
+  const causeOk = isObject(cause) && ((cause["kind"] === "integrity" && isObject(cause["integrity"])) || (cause["kind"] === "fault" && isObject(cause["fault"])));
+  return causeOk && isObject(salvage) && typeof salvage["kept"] === "number" && typeof salvage["lost"] === "number" && Array.isArray(salvage["problems"]);
+}
+
+/**
+ * This function gives each recovery of `openCheckedEventLog` for a path, from the records in its quarantine folders. A
+ * caller can report each recovery at each start, with `id` as the id of the report. In a grow-only log, a second
+ * report of the same recovery changes nothing.
+ *
+ * - The function reads each folder `<name>.broken-*` next to the path, or in the folder of the option `folder`.
+ * - The entries are in the sequence of `at`, and then of `id`. An entry of the kind `no-read` has no time, so it goes last.
+ * - A folder with no record, or with a record that does not parse, gives an entry of the kind `no-read`.
+ * - A recovery that is not complete has its record at `<path>.recovery.json`. Its folder is not in the list, because
+ *   the next open completes the recovery first.
+ * - A cause of the kind `fault` comes from the record. Its `error` is a new `Error` with the message of SQLite.
+ *
+ * @param path - The path of the database file.
+ * @param options - The folder of the quarantine folders, when it is not the folder of the path.
+ */
+export function listRecoveries(path: string, options: Pick<QuarantineOptions, "folder"> = {}): readonly RecoveryEntry[] {
+  const parent = options.folder ?? dirname(path);
+  const name = basename(path);
+  let names: string[];
+  try {
+    names = readdirSync(parent);
+  } catch (error) {
+    if ((error as { code?: unknown }).code === "ENOENT") return [];
+    throw error;
+  }
+  const open = openRecoveryFolder(path);
+  const entries: RecoveryEntry[] = [];
+  for (const id of names) {
+    if (!id.startsWith(`${name}.broken-`) || id === open) continue;
+    const folder = join(parent, id);
+    if (!statSync(folder).isDirectory()) continue;
+    entries.push(entryOf(id, folder, join(folder, `${name}.recovery.json`)));
+  }
+  return entries.sort(byTimeAndId);
+}
+
+/** This function gives the name of the folder of a recovery that is not complete, or `undefined`. */
+function openRecoveryFolder(path: string): string | undefined {
+  if (!existsSync(recordOf(path))) return undefined;
+  try {
+    return basename(readRecord(recordOf(path)).folder);
+  } catch {
+    // The next open refuses this record. Until then, its folder has no record, so the list gives it as `no-read`.
+    return undefined;
+  }
+}
+
+/** This function gives the entry of one quarantine folder from its record. */
+function entryOf(id: string, folder: string, file: string): RecoveryEntry {
+  if (!existsSync(file)) return { kind: "no-read", id, folder, problem: `The folder ${folder} has no record of a recovery.` };
+  let record: RecoveryRecord;
+  try {
+    record = readRecord(file);
+  } catch (error) {
+    return { kind: "no-read", id, folder, problem: messageOf(error) };
+  }
+  if (record.kind === "orphan-journal") return { kind: "orphan-journal", id, folder, at: record.at };
+  return { kind: "recovered", id, folder, at: record.at, cause: loadedCause(record.cause), salvage: record.salvage };
+}
+
+/** This function orders two entries by their time, and then by their id. An entry with no time goes last. */
+function byTimeAndId(a: RecoveryEntry, b: RecoveryEntry): number {
+  const x = a.kind === "no-read" ? undefined : a.at;
+  const y = b.kind === "no-read" ? undefined : b.at;
+  if (x !== y) {
+    if (x === undefined) return 1;
+    if (y === undefined) return -1;
+    return x < y ? -1 : 1;
+  }
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? -1 : 1;
 }
 
 /** This function gives the cause of a recovery for its record. */

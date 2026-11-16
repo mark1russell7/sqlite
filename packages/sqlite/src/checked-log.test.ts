@@ -1,13 +1,13 @@
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openCheckedEventLog, openCheckedEventLogWith, type CheckedEventLog, type CheckedEventLogOptions } from "./checked-log.ts";
+import { listRecoveries, openCheckedEventLog, openCheckedEventLogWith, type CheckedEventLog, type CheckedEventLogOptions } from "./checked-log.ts";
 import type { LogRecord } from "./event-log.ts";
 import { openEventLog } from "./event-log-file.ts";
 import { sqliteFault } from "./faults.ts";
-import { checkIntegrity, IntegrityError } from "./recovery.ts";
+import { checkIntegrity, IntegrityError, quarantine } from "./recovery.ts";
 
 let folder: string;
 let file: string;
@@ -277,5 +277,102 @@ describe("a crash at each step of a recovery", () => {
       writeFileSync(`${path}-wal`, "orphan");
       writeFileSync(`${path}-shm`, "orphan index");
     }, "created");
+  });
+});
+
+describe("listRecoveries", () => {
+  /** This function opens a broken log at a time, and closes it. */
+  function recoverAt(iso: string): void {
+    rmSync(file, { force: true });
+    writeLog(file);
+    breakIndexRoot(file);
+    const result = openCheckedEventLog(file, parse, { quarantine: { now: new Date(iso) } });
+    expect(result.kind).toBe("recovered");
+    result.log.close();
+  }
+
+  it("gives no entry when the folder has no quarantine, or when the folder does not exist", () => {
+    expect(listRecoveries(join(folder, "missing", "log.db"))).toEqual([]);
+    writeLog(file);
+    expect(listRecoveries(file)).toEqual([]);
+  });
+
+  it("gives each recovery in the sequence of its time, and then of its id", () => {
+    writeFileSync(`${file}-wal`, "orphan");
+    const orphan = openCheckedEventLog(file, parse, { quarantine: { now: new Date("2026-11-16T11:00:00Z") } });
+    expect(orphan.kind).toBe("orphan-journal");
+    orphan.log.close();
+    // Two recoveries at one time get the folders QUARANTINE and QUARANTINE-2
+    recoverAt("2026-11-16T12:00:00Z");
+    recoverAt("2026-11-16T12:00:00Z");
+
+    const entries = listRecoveries(file);
+    expect(entries.map((entry) => [entry.kind, entry.id])).toEqual([
+      ["orphan-journal", "log.db.broken-20261116T110000Z"],
+      ["recovered", QUARANTINE],
+      ["recovered", `${QUARANTINE}-2`],
+    ]);
+    const [, first] = entries;
+    expect(first).toEqual({
+      kind: "recovered",
+      id: QUARANTINE,
+      folder: join(folder, QUARANTINE),
+      at: "2026-11-16T12:00:00.000Z",
+      cause: { kind: "integrity", integrity: expect.objectContaining({ ok: false }) as unknown },
+      salvage: { kept: COUNT, lost: 0, problems: [] },
+    });
+  });
+
+  it("gives a folder with no record, or with a record that does not parse, as no-read, after the entries with a time", () => {
+    recoverAt("2026-11-16T12:00:00Z");
+    // quarantine() writes no record
+    quarantine(file, { now: new Date("2026-11-16T10:00:00Z") });
+    mkdirSync(join(folder, "log.db.broken-bad-json"));
+    writeFileSync(join(folder, "log.db.broken-bad-json", "log.db.recovery.json"), "{ not json");
+    mkdirSync(join(folder, "log.db.broken-old-format"));
+    writeFileSync(join(folder, "log.db.broken-old-format", "log.db.recovery.json"), JSON.stringify({ format: "sqlite-recovery/0", kind: "recovered" }));
+    // A file with the name of a quarantine folder is not a quarantine
+    writeFileSync(join(folder, "log.db.broken-file"), "not a folder");
+
+    const entries = listRecoveries(file);
+    expect(entries.map((entry) => [entry.kind, entry.id])).toEqual([
+      ["recovered", QUARANTINE],
+      ["no-read", "log.db.broken-20261116T100000Z"],
+      ["no-read", "log.db.broken-bad-json"],
+      ["no-read", "log.db.broken-old-format"],
+    ]);
+    const problems = entries.flatMap((entry) => (entry.kind === "no-read" ? [entry.problem] : []));
+    expect(problems[0]).toContain("has no record of a recovery");
+    expect(problems[1]).toContain("is not valid JSON");
+    expect(problems[2]).toContain("has a format that this version does not know");
+  });
+
+  it("does not give a recovery that is not complete, and gives it after the next open completes it", () => {
+    writeLog(file);
+    breakIndexRoot(file);
+    expect(() =>
+      openCheckedEventLogWith(file, parse, options, (step) => {
+        if (step === "moved-main") throw new Error("stop");
+      }),
+    ).toThrow("stop");
+    expect(existsSync(`${file}.recovery.json`)).toBe(true);
+    expect(existsSync(join(folder, QUARANTINE, "log.db"))).toBe(true);
+    expect(listRecoveries(file)).toEqual([]);
+
+    const again = openCheckedEventLog(file, parse, options);
+    expect(again.kind).toBe("recovered");
+    again.log.close();
+    expect(listRecoveries(file).map((entry) => [entry.kind, entry.id])).toEqual([["recovered", QUARANTINE]]);
+  });
+
+  it("reads the quarantine folders in the folder of the option folder", () => {
+    const elsewhere = join(folder, "quarantine");
+    mkdirSync(elsewhere);
+    writeLog(file);
+    breakIndexRoot(file);
+    const result = openCheckedEventLog(file, parse, { quarantine: { now, folder: elsewhere } });
+    result.log.close();
+    expect(listRecoveries(file)).toEqual([]);
+    expect(listRecoveries(file, { folder: elsewhere }).map((entry) => [entry.kind, entry.folder])).toEqual([["recovered", join(elsewhere, QUARANTINE)]]);
   });
 });

@@ -45,7 +45,7 @@ export class IntegrityError extends Error {
 }
 
 /** This function gives the message of an error. */
-function messageOf(error: unknown): string {
+export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 

@@ -44,6 +44,7 @@ type ReadOptions: build/event-log.d.ts#ReadOptions
 type ReadTransactionDatabase: build/transaction.d.ts#ReadTransactionDatabase
 type Recovered: build/recovery.d.ts#Recovered
 type RecoveryCause: build/checked-log.d.ts#RecoveryCause
+type RecoveryEntry: build/checked-log.d.ts#RecoveryEntry
 SCHEMA_VERSIONS_TABLE: build/migrate.d.ts#SCHEMA_VERSIONS_TABLE
 SQLITE_FAULT_ACTIONS: build/faults.d.ts#SQLITE_FAULT_ACTIONS
 type SalvageCounts: build/checked-log.d.ts#SalvageCounts
@@ -83,6 +84,7 @@ confineToFile: build/confine.d.ts#confineToFile
 eachStatement: build/statements.d.ts#eachStatement
 ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
+listRecoveries: build/checked-log.d.ts#listRecoveries
 migrate: build/migrate.d.ts#migrate
 openCheckedEventLog: build/checked-log.d.ts#openCheckedEventLog
 openDatabase: build/database.d.ts#openDatabase
@@ -203,12 +205,35 @@ export type RecoveryCause = {
   readonly fault: SqliteFault;
 };
 
+### build/checked-log.d.ts#RecoveryEntry
+export type RecoveryEntry = {
+  readonly kind: "recovered";
+  readonly id: string;
+  readonly folder: string;
+  readonly at: string;
+  readonly cause: RecoveryCause;
+  readonly salvage: SalvageCounts;
+} | {
+  readonly kind: "orphan-journal";
+  readonly id: string;
+  readonly folder: string;
+  readonly at: string;
+} | {
+  readonly kind: "no-read";
+  readonly id: string;
+  readonly folder: string;
+  readonly problem: string;
+};
+
 ### build/checked-log.d.ts#SalvageCounts
 export interface SalvageCounts {
   readonly kept: number;
   readonly lost: number;
   readonly problems: readonly string[];
 }
+
+### build/checked-log.d.ts#listRecoveries
+export declare function listRecoveries(path: string, options?: Pick<QuarantineOptions, "folder">): readonly RecoveryEntry[];
 
 ### build/checked-log.d.ts#openCheckedEventLog
 export declare function openCheckedEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options?: CheckedEventLogOptions<E>): CheckedEventLog<E>;
