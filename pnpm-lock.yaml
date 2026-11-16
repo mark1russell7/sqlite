@@ -247,6 +247,15 @@ importers:
       '@mark1russell7/cue':
         specifier: ^2.0.0
         version: 2.1.4
+      '@mark1russell7/rigor-bench':
+        specifier: ^0.2.52
+        version: 0.2.52(esbuild@0.28.2)
+      '@mark1russell7/rigor-generators':
+        specifier: ^0.1.17
+        version: 0.1.17
+      '@mark1russell7/rigor-statistics':
+        specifier: ^0.2.7
+        version: 0.2.7
       '@sqlite.org/sqlite-wasm':
         specifier: 3.54.1-build1
         version: 3.54.1-build1
@@ -517,12 +526,30 @@ packages:
     engines: {node: '>=22'}
     hasBin: true
 
+  '@mark1russell7/rigor-bench@0.2.52':
+    resolution: {integrity: sha512-r3VEV65UEG9d2mJRjPiMBkvcW4OYR3DmLznYPJJxc/xXEMMKeGMgAvZaZSTwlTvSW4U2a+KprePzDP8e5joMMA==}
+    engines: {node: '>=22'}
+    hasBin: true
+    peerDependencies:
+      esbuild: ^0.28.2
+    peerDependenciesMeta:
+      esbuild:
+        optional: true
+
   '@mark1russell7/rigor-generators@0.1.16':
     resolution: {integrity: sha512-C94Q4C31aZ8UXx1R0JSBV7DiQFl5tVpbFxHxHzHaSqr3dTgmCkEvLrvlUV8/0/GZqPhQYG9cbX6GOlqfRj/h4g==}
     engines: {node: '>=22'}
 
+  '@mark1russell7/rigor-generators@0.1.17':
+    resolution: {integrity: sha512-8AgghtHgTlV+rnOPuCkHQ4rFKfaP42XvOT9dO7kHmgHWPxqoRDy8mrz/p4510W3iyqfHBPGeE31mv7DDX/KzCg==}
+    engines: {node: '>=22'}
+
   '@mark1russell7/rigor-statistics@0.2.5':
     resolution: {integrity: sha512-jaUqrz8FmsUoR9n0MeRUIk9UTpG5QL+dF/moh+C23fyihb00LgOD42Up//1piIPVZZDiq6lua0sBcSKMwh5IFg==}
+    engines: {node: '>=22'}
+
+  '@mark1russell7/rigor-statistics@0.2.7':
+    resolution: {integrity: sha512-XJ2igHIhxiXEhPIJQjHa0YerAP4g7cJi/NkLphICdPCMhrD5Vwc8CnL9PPxOIz1+oJ0MTJ8eX7Jickcwz269wQ==}
     engines: {node: '>=22'}
 
   '@mark1russell7/site-pages@0.5.0':
@@ -534,6 +561,10 @@ packages:
     resolution: {integrity: sha512-0WRNon1oYKX1mmTP/AhrPnpoGAGolmpkJWHaTkHXc4SKe1tQhUvPrY/0TQ4gvu7aN+TEPpypiZDIkOjYZG8qBA==}
     engines: {node: '>=22'}
     hasBin: true
+
+  '@mark1russell7/text@0.0.6':
+    resolution: {integrity: sha512-IwKQHx9U+k5AbEzZ8q4CxImQCuYXSFhvzMOSgy5UGYrZRIBO9RES7SYrXDrKqQFtMl5qD2QbibffevUPsrUW+A==}
+    engines: {node: '>=22.12'}
 
   '@mark1russell7/template-cli@0.1.7':
     resolution: {integrity: sha512-Wy4xa6OgNXyMunSyXOArxmrspLSCuyw1pf1P5X45Uiwe1aWHzn0LJptUYVGUSwT3GTp9FGVDhFMeOnKlapD3Xw==}
@@ -1834,11 +1865,25 @@ snapshots:
 
   '@mark1russell7/cue@2.1.4': {}
 
+  '@mark1russell7/rigor-bench@0.2.52(esbuild@0.28.2)':
+    dependencies:
+      '@mark1russell7/rigor-generators': 0.1.17
+      '@mark1russell7/rigor-statistics': 0.2.7
+      '@mark1russell7/text': 0.0.6
+    optionalDependencies:
+      esbuild: 0.28.2
+
   '@mark1russell7/rigor-generators@0.1.16': {}
+
+  '@mark1russell7/rigor-generators@0.1.17': {}
 
   '@mark1russell7/rigor-statistics@0.2.5':
     dependencies:
       '@mark1russell7/rigor-generators': 0.1.16
+
+  '@mark1russell7/rigor-statistics@0.2.7':
+    dependencies:
+      '@mark1russell7/rigor-generators': 0.1.17
 
   '@mark1russell7/site-pages@0.5.0':
     dependencies:
@@ -1847,6 +1892,8 @@ snapshots:
   '@mark1russell7/ste-lint@0.3.2':
     dependencies:
       typescript: 6.0.3
+
+  '@mark1russell7/text@0.0.6': {}
 
   '@mark1russell7/template-cli@0.1.7':
     dependencies:

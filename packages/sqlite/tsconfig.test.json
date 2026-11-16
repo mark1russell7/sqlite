@@ -15,7 +15,8 @@
   "include": [
     "src/**/*",
     "test/types/**/*",
-    "*.config.ts"
+    "*.config.ts",
+    "scale/**/*"
   ],
   "exclude": []
 }
