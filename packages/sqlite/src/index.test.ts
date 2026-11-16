@@ -5,6 +5,7 @@ describe("the entry", () => {
   it("exports the functions of the package", () => {
     expect(Object.keys(entry).sort()).toEqual([
       "BrokenLogError",
+      "ConfineUnavailableError",
       "EVENT_LOG_SCHEMA_VERSION",
       "IntegrityError",
       "SCHEMA_VERSIONS_TABLE",
@@ -14,6 +15,8 @@ describe("the entry", () => {
       "checkIntegrity",
       "checkpoint",
       "clearDatabase",
+      "confineToFile",
+      "eachStatement",
       "ensureProjection",
       "eventLog",
       "migrate",
