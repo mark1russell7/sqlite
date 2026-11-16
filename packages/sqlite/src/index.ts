@@ -65,6 +65,15 @@ export {
   type Salvaged,
   type Snapshot,
 } from "./recovery.ts";
+export {
+  listRecoveries,
+  openCheckedEventLog,
+  type CheckedEventLog,
+  type CheckedEventLogOptions,
+  type RecoveryCause,
+  type RecoveryEntry,
+  type SalvageCounts,
+} from "./checked-log.ts";
 export { SQLITE_FAULT_ACTIONS, sqliteFault, type SqliteFault, type SqliteFaultAction, type SqliteFaultKind } from "./faults.ts";
 
 /**

@@ -3,6 +3,7 @@
  *
  * @packageDocumentation
  */
+import type { DatabaseSync } from "node:sqlite";
 import { openDatabase, type OpenOptions } from "./database.ts";
 import { attach, DEFAULT_TABLE, logSteps, type Equal, type EventLog, type LogRecord } from "./event-log.ts";
 import { migrate } from "./migrate.ts";
@@ -31,10 +32,21 @@ export interface EventLogFileOptions<E> extends OpenOptions {
  * @param options - The pragmas of the connection, and the equality of events. The defaults are the defaults of `openDatabase`.
  */
 export function openEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options: EventLogFileOptions<E> = {}): EventLogFile<E> {
-  const db = openDatabase(path, options);
+  return logFileOn(openDatabase(path, options), parse, options.equal);
+}
+
+/**
+ * This function makes the log of `openEventLog` on an open connection. The log owns the connection. An error closes the
+ * connection, and then the function throws the error.
+ *
+ * @param db - The connection of the file.
+ * @param parse - The parse of a stored JSON value into an event.
+ * @param equal - The equality of events.
+ */
+export function logFileOn<E extends LogRecord>(db: DatabaseSync, parse: Parse<E>, equal: Equal<E> | undefined): EventLogFile<E> {
   try {
     migrate(db, logSteps(DEFAULT_TABLE), { name: "log" });
-    const log = attach(db, DEFAULT_TABLE, parseFunction(parse), options.equal, "refuse");
+    const log = attach(db, DEFAULT_TABLE, parseFunction(parse), equal, "refuse");
     return {
       ...log,
       close() {

@@ -373,6 +373,8 @@ A power cut, a bad disk or a copy of an open file can break a file. These functi
 | `openOrQuarantine(path, open)` | It opens the file. When the file is broken, it moves the file into quarantine and opens an empty file. |
 | `salvageEventLog(source, log, { parse })` | It reads the readable events of a broken log, and appends them to a new log. |
 | `snapshot(db, path)` | It writes a consistent copy of an open database with `VACUUM INTO`, and then replaces the file at the path. |
+| `openCheckedEventLog(path, parse)` | It opens a log after a check of its file. It recovers a broken file in steps that a crash does not break. |
+| `listRecoveries(path)` | It gives each recovery of `openCheckedEventLog` from the records in the quarantine folders. |
 
 ```ts
 import { checkIntegrity, eventLog, IntegrityError, openDatabase, openOrQuarantine, salvageEventLog } from "@mark1russell7/sqlite";
@@ -401,6 +403,60 @@ if (quarantined?.database !== undefined) {
 - `open` must close its connection when it throws. Each other error goes to the caller.
 - `salvageEventLog` opens the broken file read-only. After a broken page, it reads each later position alone, and counts the lost positions.
 - `snapshot` does not stop the writers. Use it for a backup or for a copy to a different computer.
+
+### The checked open of a log
+
+`openCheckedEventLog` opens a log in its own file after an integrity check. It moves a broken file into quarantine, and a new file gets each readable event.
+
+```ts
+import { openCheckedEventLog } from "@mark1russell7/sqlite";
+
+const opened = openCheckedEventLog("data/events.db", parse, { busyTimeoutMs: 5000 });
+if (opened.kind === "recovered" && opened.salvage.lost > 0) report(opened.cause, opened.quarantined.folder, opened.salvage);
+const { log } = opened;
+```
+
+| `kind` | What the function found | The other fields |
+| --- | --- | --- |
+| `created` | No file. The log is a new file. | None |
+| `opened` | A file that passed its check. | `integrity` |
+| `recovered` | A broken file. It is in quarantine, and the new file has each event that the salvage kept. | `cause`, `quarantined`, `salvage: { kept, lost, problems }` |
+| `orphan-journal` | A WAL, SHM or journal file with no database file. It is in quarantine, and the log is a new file. | `quarantined` |
+
+The recovery has four steps, and each step can be done again:
+
+1. The salvage reads each readable event of the broken file into the file `<path>.salvage-tmp`.
+2. The record `<path>.recovery.json` marks the salvage complete. It keeps the cause, the counts and the quarantine folder.
+3. The broken file and its WAL, SHM and journal files move into the quarantine folder. The main file goes last.
+4. The salvage file takes the path, and the record moves into the quarantine folder.
+
+- A crash before step 2 leaves the broken file at the path. The next open starts the recovery again.
+- A crash after step 2 leaves the record. The next open completes the steps 3 and 4 with the same folder and the same counts.
+- The option `check` sets the check. The default is `{ quick: true }`, and `{ quick: false }` does the full `integrity_check`.
+- A failed check and the fault kinds `corrupt` and `not-a-database` start a recovery. Each other error goes to the caller, for example a lock that is not free.
+- With `readOnly`, the function moves nothing. A failed check throws an `IntegrityError`, and a fault throws its error.
+- The function closes each connection before each rename, because Windows does not rename an open file.
+- The read-only salvage can leave an empty WAL and SHM file next to the broken file. These files also go into quarantine.
+- After a crash, the `cause` of a fault comes from the record. Its `error` is a new `Error` with the message of SQLite.
+- Only one process at a time can recover a file.
+
+`listRecoveries(path)` gives each recovery from the records in the quarantine folders. A caller can report each recovery at each start:
+
+```ts
+import { listRecoveries } from "@mark1russell7/sqlite";
+
+for (const entry of listRecoveries("data/events.db")) {
+  if (entry.kind === "no-read") report(entry.problem);
+  else log.append({ id: `recovered:${entry.id}`, at: entry.at, type: entry.kind, lost: entry.kind === "recovered" ? entry.salvage.lost : 0 });
+}
+```
+
+- `id` is the name of the quarantine folder. It stays the same when the data folder moves, so a report with this id is the same report at each start.
+- Make the report only from the fields that do not change, for example `id`, `at` and the counts. The log gives a conflict for one id with a different body.
+- A stop after the open and before the report of the caller does not lose the report. The next start reports it.
+- The entries are in the sequence of `at`, and then of `id`. The option `folder` reads the quarantine folders of a different folder.
+- A folder with no record, or with a record that does not parse, gives an entry of the kind `no-read` with its `problem`. These entries go last.
+- A recovery that is not complete is not in the list. The next open completes it, and then the list has it.
 
 ## The portable entry
 
