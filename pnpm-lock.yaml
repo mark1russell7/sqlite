@@ -252,22 +252,22 @@ importers:
         version: 2.1.4
       '@mark1russell7/harness':
         specifier: ^0.16.5
-        version: 0.16.6(@mark1russell7/rigor-generators@0.1.17)(bare-buffer@3.7.2)(esbuild@0.28.2)(fast-check@4.10.2)(supports-color@7.2.0)(zod@4.6.7)
+        version: 0.16.9(@mark1russell7/rigor-generators@0.2.0)(bare-buffer@3.7.2)(esbuild@0.28.2)(fast-check@4.10.2)(supports-color@7.2.0)(zod@4.6.7)
       '@mark1russell7/rigor-bench':
         specifier: ^0.2.52
-        version: 0.2.52(esbuild@0.28.2)
+        version: 0.2.57(esbuild@0.28.2)
       '@mark1russell7/rigor-chaos':
         specifier: ^0.3.3
         version: 0.3.4
       '@mark1russell7/rigor-generators':
-        specifier: ^0.1.17
-        version: 0.1.17
+        specifier: ^0.2.0
+        version: 0.2.0
       '@mark1russell7/rigor-statistics':
         specifier: ^0.2.7
-        version: 0.2.7
+        version: 0.2.10
       '@mark1russell7/rigor-testkit':
         specifier: ^0.1.18
-        version: 0.1.18(@mark1russell7/rigor-chaos@0.3.4)(@mark1russell7/rigor-generators@0.1.17)(fast-check@4.10.2)
+        version: 0.1.20(@mark1russell7/rigor-chaos@0.3.4)(@mark1russell7/rigor-generators@0.2.0)(fast-check@4.10.2)
       '@sqlite.org/sqlite-wasm':
         specifier: 3.54.1-build1
         version: 3.54.1-build1
@@ -564,14 +564,14 @@ packages:
     engines: {node: '>=22'}
     hasBin: true
 
-  '@mark1russell7/harness@0.16.6':
-    resolution: {integrity: sha512-m9o8UC8eBoHYQ92FmZw7lBLBtFhTbLyBgv92suQ6XoVzUumHDV3Hlo4NTd2iEkrIUUumbOt2HbwfDttaSvMbwg==}
+  '@mark1russell7/harness@0.16.9':
+    resolution: {integrity: sha512-dNsiRQ+dKrSiJRtwbiwGXa8rjPuoJRg7biTkKbeSggTLa1fHUkXhYckQLZcB8FUkYsGIX5gF2NwC6KvM+9mFKQ==}
     engines: {node: '>=22.19'}
     peerDependencies:
       zod: ^4.1.0
 
-  '@mark1russell7/prober@0.3.4':
-    resolution: {integrity: sha512-pUTfPZJVTAYkTjFlI0Ae1ztWzahjjmxUqnvf9zLEs5YBy0IHx+XwTCTOPgi7Pk4nqZDRb4T4Pwi21MJAZqBT5w==}
+  '@mark1russell7/prober@0.3.5':
+    resolution: {integrity: sha512-KrjMsFbbabABgoM4SyYhhZ7gjdqmWRAnxuRq2Csn//u9+SlKJl6+gJ0yufj/+Nu0T2LM2841WBm+pGzrRTN6NA==}
     engines: {node: '>=22.19'}
     peerDependencies:
       zod: ^4.1.0
@@ -589,8 +589,8 @@ packages:
     resolution: {integrity: sha512-S28nfQFfRax40wbV9UTw711ZwnVB3rCW/SPpAuJtyKBh/zFbQx69+qnAeLF7u2B9GccaY75nIMZtN8mvgSRA1Q==}
     engines: {node: '>=22'}
 
-  '@mark1russell7/rigor-bench@0.2.52':
-    resolution: {integrity: sha512-r3VEV65UEG9d2mJRjPiMBkvcW4OYR3DmLznYPJJxc/xXEMMKeGMgAvZaZSTwlTvSW4U2a+KprePzDP8e5joMMA==}
+  '@mark1russell7/rigor-bench@0.2.57':
+    resolution: {integrity: sha512-4xK9Q3ckTYt6a/tgPD/8Jt3pFsV3kbyqTOJEQ5L5RCV9D/FpeIxeqd9jpxcgRV53h0ymDu/1xhrbSDRk0QNLBg==}
     engines: {node: '>=22'}
     hasBin: true
     peerDependencies:
@@ -603,46 +603,34 @@ packages:
     resolution: {integrity: sha512-8Od9qR9rS4jbYfEKKrRpaOqx7vMb2I9s9+DMK9bBYx3JI25qGeDa15bU0MyrtrfNZOtRLknXzjbKMbE9/aXXkA==}
     engines: {node: '>=22'}
 
-  '@mark1russell7/rigor-generators@0.1.17':
-    resolution: {integrity: sha512-8AgghtHgTlV+rnOPuCkHQ4rFKfaP42XvOT9dO7kHmgHWPxqoRDy8mrz/p4510W3iyqfHBPGeE31mv7DDX/KzCg==}
-    engines: {node: '>=22'}
-
-  '@mark1russell7/rigor-generators@0.1.18':
-    resolution: {integrity: sha512-z5Ia9gDuS/I9pV/4rOoRx3o2DAhW2VE2UYoqIlHo88pmLPX7SWJcympg2N+QS9sSA6Dn0vTPcicxeDX6oXzAGw==}
-    engines: {node: '>=22'}
-
   '@mark1russell7/rigor-generators@0.2.0':
     resolution: {integrity: sha512-eTyJhK4Nowx1KQ3QrsQqLiAlhFoL+8m1OT6He+X0Lf0G/0f9OyQC8ponQLViQKRkP/ef10B6oACFjtjnKErobg==}
     engines: {node: '>=22'}
 
-  '@mark1russell7/rigor-statistics@0.2.7':
-    resolution: {integrity: sha512-XJ2igHIhxiXEhPIJQjHa0YerAP4g7cJi/NkLphICdPCMhrD5Vwc8CnL9PPxOIz1+oJ0MTJ8eX7Jickcwz269wQ==}
+  '@mark1russell7/rigor-statistics@0.2.10':
+    resolution: {integrity: sha512-2YQKwuR9DHh5l98U8G9ADvVpjBfsZ/smMslBuPf4ryYUVSefS+xl06pulhoeH+Ya7s5uUsS7yEovg8h64E3jOw==}
     engines: {node: '>=22'}
 
-  '@mark1russell7/rigor-statistics@0.2.8':
-    resolution: {integrity: sha512-wPRQe/5351Xr16MIzgHTJyUYeaMh4ScadJ2AHCHZDf5NQdEDD6pG8zhWc0UPKbApTPWU/f7tDqnotSoyWmCqMQ==}
-    engines: {node: '>=22'}
-
-  '@mark1russell7/rigor-statistics@0.2.9':
-    resolution: {integrity: sha512-9u9u2imcLpkiwSu1FGeB57Z+/Fr7byplVNMoR8G9OELjhSwOdzNbTiPieHqFM6phVVyMWrGlgoEQyBaxKqwvtQ==}
-    engines: {node: '>=22'}
-
-  '@mark1russell7/rigor-testkit@0.1.18':
-    resolution: {integrity: sha512-7nOt/bsuOxKzSbhzpQ1JkH4CRkJo99yEP4gcgJkx7mY7EitTrM4Yi62JKGVlHcEOtYM6uMAAI5ACWC2che5gLQ==}
+  '@mark1russell7/rigor-testkit@0.1.20':
+    resolution: {integrity: sha512-1gnSTqu73O+hV6IZ0pZMBMCwFdILTebBAJu1Y78q+BndXOZzWSRDhsHr83dk3qoLIGubnQuTB++19kmH+/PZ5g==}
     engines: {node: '>=22'}
     peerDependencies:
       '@mark1russell7/rigor-chaos': ^0.3.2
       '@mark1russell7/rigor-generators': ^0.1.18 || ^0.2.0
+      '@mark1russell7/rigor-proxy': ^0.4.1
       '@opentelemetry/api': ^1.9.0
       '@opentelemetry/api-logs': ^0.213.0 || ^0.223.0
       '@opentelemetry/sdk-logs': ^0.223.0 || ^3.0.0
       '@opentelemetry/sdk-metrics': ^2.12.0 || ^3.0.0
       '@opentelemetry/sdk-trace-base': ^2.12.0
       fast-check: ^4.0.0
+      ltx: ^3.1.2
     peerDependenciesMeta:
       '@mark1russell7/rigor-chaos':
         optional: true
       '@mark1russell7/rigor-generators':
+        optional: true
+      '@mark1russell7/rigor-proxy':
         optional: true
       '@opentelemetry/api':
         optional: true
@@ -655,6 +643,8 @@ packages:
       '@opentelemetry/sdk-trace-base':
         optional: true
       fast-check:
+        optional: true
+      ltx:
         optional: true
 
   '@mark1russell7/site-pages@0.7.0':
@@ -672,8 +662,8 @@ packages:
     engines: {node: '>=22.12'}
     hasBin: true
 
-  '@mark1russell7/text@0.0.6':
-    resolution: {integrity: sha512-IwKQHx9U+k5AbEzZ8q4CxImQCuYXSFhvzMOSgy5UGYrZRIBO9RES7SYrXDrKqQFtMl5qD2QbibffevUPsrUW+A==}
+  '@mark1russell7/text@0.0.13':
+    resolution: {integrity: sha512-8Tu7DTTpfmpXIy0F2JCyOW1RD91X7tm38c5xiqz3cLdmEkUQViH/06kTBLj+hrzuQPMBGVyxd7snqVG6EpNLdQ==}
     engines: {node: '>=22.12'}
 
   '@napi-rs/wasm-runtime@1.2.6':
@@ -2464,18 +2454,19 @@ snapshots:
 
   '@mark1russell7/cue@2.1.4': {}
 
-  '@mark1russell7/harness@0.16.6(@mark1russell7/rigor-generators@0.1.17)(bare-buffer@3.7.2)(esbuild@0.28.2)(fast-check@4.10.2)(supports-color@7.2.0)(zod@4.6.7)':
+  '@mark1russell7/harness@0.16.9(@mark1russell7/rigor-generators@0.2.0)(bare-buffer@3.7.2)(esbuild@0.28.2)(fast-check@4.10.2)(supports-color@7.2.0)(zod@4.6.7)':
     dependencies:
-      '@mark1russell7/prober': 0.3.4(zod@4.6.7)
+      '@mark1russell7/prober': 0.3.5(zod@4.6.7)
       '@mark1russell7/quantity': 0.4.1(zod@4.6.7)
-      '@mark1russell7/rigor-bench': 0.2.52(esbuild@0.28.2)
+      '@mark1russell7/rigor-bench': 0.2.57(esbuild@0.28.2)
       '@mark1russell7/rigor-chaos': 0.3.4
-      '@mark1russell7/rigor-statistics': 0.2.7
-      '@mark1russell7/rigor-testkit': 0.1.18(@mark1russell7/rigor-chaos@0.3.4)(@mark1russell7/rigor-generators@0.1.17)(fast-check@4.10.2)
+      '@mark1russell7/rigor-statistics': 0.2.10
+      '@mark1russell7/rigor-testkit': 0.1.20(@mark1russell7/rigor-chaos@0.3.4)(@mark1russell7/rigor-generators@0.2.0)(fast-check@4.10.2)
       testcontainers: 12.2.1(bare-buffer@3.7.2)(supports-color@7.2.0)
       zod: 4.6.7
     transitivePeerDependencies:
       - '@mark1russell7/rigor-generators'
+      - '@mark1russell7/rigor-proxy'
       - '@opentelemetry/api'
       - '@opentelemetry/api-logs'
       - '@opentelemetry/sdk-logs'
@@ -2485,10 +2476,11 @@ snapshots:
       - bare-buffer
       - esbuild
       - fast-check
+      - ltx
       - react-native-b4a
       - supports-color
 
-  '@mark1russell7/prober@0.3.4(zod@4.6.7)':
+  '@mark1russell7/prober@0.3.5(zod@4.6.7)':
     dependencies:
       '@mark1russell7/quantity': 0.4.1(zod@4.6.7)
       zod: 4.6.7
@@ -2501,46 +2493,34 @@ snapshots:
 
   '@mark1russell7/rational@0.1.3': {}
 
-  '@mark1russell7/rigor-bench@0.2.52(esbuild@0.28.2)':
+  '@mark1russell7/rigor-bench@0.2.57(esbuild@0.28.2)':
     dependencies:
-      '@mark1russell7/rigor-generators': 0.1.17
-      '@mark1russell7/rigor-statistics': 0.2.7
-      '@mark1russell7/text': 0.0.6
+      '@mark1russell7/rigor-generators': 0.2.0
+      '@mark1russell7/rigor-statistics': 0.2.10
+      '@mark1russell7/text': 0.0.13
     optionalDependencies:
       esbuild: 0.28.2
 
   '@mark1russell7/rigor-chaos@0.3.4':
     dependencies:
       '@mark1russell7/rigor-generators': 0.2.0
-      '@mark1russell7/rigor-statistics': 0.2.9
-
-  '@mark1russell7/rigor-generators@0.1.17': {}
-
-  '@mark1russell7/rigor-generators@0.1.18': {}
+      '@mark1russell7/rigor-statistics': 0.2.10
 
   '@mark1russell7/rigor-generators@0.2.0': {}
 
-  '@mark1russell7/rigor-statistics@0.2.7':
-    dependencies:
-      '@mark1russell7/rigor-generators': 0.1.17
-
-  '@mark1russell7/rigor-statistics@0.2.8':
-    dependencies:
-      '@mark1russell7/rigor-generators': 0.1.18
-
-  '@mark1russell7/rigor-statistics@0.2.9':
+  '@mark1russell7/rigor-statistics@0.2.10':
     dependencies:
       '@mark1russell7/rigor-generators': 0.2.0
 
-  '@mark1russell7/rigor-testkit@0.1.18(@mark1russell7/rigor-chaos@0.3.4)(@mark1russell7/rigor-generators@0.1.17)(fast-check@4.10.2)':
+  '@mark1russell7/rigor-testkit@0.1.20(@mark1russell7/rigor-chaos@0.3.4)(@mark1russell7/rigor-generators@0.2.0)(fast-check@4.10.2)':
     optionalDependencies:
       '@mark1russell7/rigor-chaos': 0.3.4
-      '@mark1russell7/rigor-generators': 0.1.17
+      '@mark1russell7/rigor-generators': 0.2.0
       fast-check: 4.10.2
 
   '@mark1russell7/site-pages@0.7.0':
     dependencies:
-      '@mark1russell7/rigor-statistics': 0.2.8
+      '@mark1russell7/rigor-statistics': 0.2.10
 
   '@mark1russell7/ste-lint@0.3.2':
     dependencies:
@@ -2550,7 +2530,7 @@ snapshots:
     dependencies:
       '@clack/prompts': 1.9.0
 
-  '@mark1russell7/text@0.0.6': {}
+  '@mark1russell7/text@0.0.13': {}
 
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@2.0.0-beta.2)(@emnapi/runtime@2.0.0-beta.2)':
     dependencies:
