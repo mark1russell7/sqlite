@@ -31,3 +31,7 @@ trustPolicyIgnoreAfter: 10080
 trustPolicyExclude:
   - "@mark1russell7/*"
   - "@procedures/*"
+
+overrides:
+  # GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249. The rule security-overrides of conventions removes this line at its end.
+  "archiver-utils>glob": "^14.0.3"
