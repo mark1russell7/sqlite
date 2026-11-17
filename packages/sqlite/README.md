@@ -24,7 +24,7 @@ const db = openDatabase("data/app.db", { synchronous: "NORMAL", busyTimeoutMs: 5
 | --- | --- | --- |
 | `wal` | `true` | The write-ahead log. Then readers do not stop a writer. With `"when-writable"`, a file that the process cannot write keeps its journal mode. |
 | `readOnly` | `false` | The connection reads the file and cannot write it. The file must exist. The journal mode does not change. |
-| `synchronous` | `FULL` | The pragma `synchronous`. With WAL, `NORMAL` can lose the last commits at a power cut. The file stays good. |
+| `synchronous` | `FULL` | The pragma `synchronous`. With WAL, `NORMAL` loses the commits after the last checkpoint at a power cut. The file stays good. See [What a power cut keeps](#what-a-power-cut-keeps). |
 | `busyTimeoutMs` | `0` | The time that a statement waits for the lock of a different connection. With `0`, the statement fails at once. |
 | `makeFolder` | `false` | The function makes the folder of the file. `folderMode` sets the mode of the new folders. |
 
@@ -38,6 +38,30 @@ const db = openDatabase("catalog.db", { readOnly: true, busyTimeoutMs: 5000 });
 
 - `readOnly` with `wal: true` or `makeFolder: true` is an error, because both change the disk.
 - With `wal: "when-writable"`, the open sets WAL when it can. On a file that the process cannot write, the connection reads the file, and each write throws.
+
+### What a power cut keeps
+
+A power cut loses each write that is not synced to the disk. The test `power/power.test.ts` measures which commits each `synchronous` setting keeps. It operates in CI on LazyFS. This file system keeps each write in a cache until an fsync, and the test clears the cache after it stops the writer. Each commit of the writer adds 10 events to an event log.
+
+| Journal | `synchronous` | The writer | Commits before the cut | Commits kept |
+| --- | --- | --- | --- | --- |
+| WAL | `FULL` | a cut after the commit 6 | 6 | 6 |
+| WAL | `EXTRA` | a cut after the commit 6 | 6 | 6 |
+| WAL | `FULL` | a commit each 20 ms, a cut at 1.5 s | 66 | 66 |
+| WAL | `NORMAL` | no checkpoint | 6 | 0 |
+| WAL | `NORMAL` | a checkpoint each 4 commits | 10 | 8 |
+| WAL | `NORMAL` | a checkpoint each 25 commits, a cut at 1.5 s | 65 | 50 |
+| WAL | `NORMAL` | the writer closes the database before the cut | 12 | 12 |
+| WAL | `OFF` | a checkpoint each 4 commits | 10 | 0 |
+| delete | `FULL` | a cut after the commit 6 | 6 | 6 |
+| delete | `NORMAL` | a cut after the commit 6 | 6 | 6 |
+
+- `FULL` and `EXTRA` keep each commit. A commit is on the disk when its transaction ends.
+- With WAL, `NORMAL` keeps the commits up to the last checkpoint, and loses each commit after it. The function `checkpoint` and the close of the last connection make a checkpoint.
+- By default, SQLite also makes a checkpoint when the WAL file has 1,000 pages.
+- `OFF` keeps no commit, also after a checkpoint, because it makes no fsync.
+- With the journal `delete`, `NORMAL` kept each commit in this test. The documentation of SQLite tells of a small risk to the file on an old file system.
+- In each case the file opens, and `PRAGMA integrity_check` gives `ok`. No case keeps a part of a transaction.
 
 ### The SQL of a caller
 
