@@ -51,6 +51,8 @@ A power cut loses each write that is not synced to the disk. The test `power/pow
 | WAL | `NORMAL` | no checkpoint | 6 | 0 |
 | WAL | `NORMAL` | a checkpoint each 4 commits | 10 | 8 |
 | WAL | `NORMAL` | a checkpoint each 25 commits, a cut at 1.5 s | 65 | 50 |
+| WAL | `NORMAL` | a `syncedTransaction` each 4 commits | 10 | 8 |
+| WAL | `NORMAL` | a `syncedTransaction` each 25 commits, a cut at 1.5 s | 65 | 50 |
 | WAL | `NORMAL` | the writer closes the database before the cut | 12 | 12 |
 | WAL | `OFF` | a checkpoint each 4 commits | 10 | 0 |
 | delete | `FULL` | a cut after the commit 6 | 6 | 6 |
