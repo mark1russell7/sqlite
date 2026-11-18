@@ -23,7 +23,7 @@ const whole = (commits: number): Extract<Kept, { opened: true }> => ({ file: tru
 
 describe("the settings of the writer", () => {
   it("go through the environment and come back the same", () => {
-    const settings = { ...DEFAULTS, synchronous: "NORMAL" as const, checkpointEvery: 4, pauseMs: 20 };
+    const settings = { ...DEFAULTS, synchronous: "NORMAL" as const, checkpointEvery: 4, pauseMs: 20, syncEvery: 5 };
     expect(settingsOf(envOf(settings))).toEqual(settings);
     expect(settingsOf({})).toEqual(DEFAULTS);
   });
@@ -33,6 +33,7 @@ describe("the settings of the writer", () => {
     expect(() => settingsOf({ POWER_JOURNAL: "memory" })).toThrow(RangeError);
     expect(() => settingsOf({ POWER_TRANSACTIONS: "0" })).toThrow(RangeError);
     expect(() => settingsOf({ POWER_BATCH: "2.5" })).toThrow(RangeError);
+    expect(() => settingsOf({ POWER_SYNC_EVERY: "-1" })).toThrow(RangeError);
     expect(() => settingsOf({ POWER_JOURNAL: "delete", POWER_CHECKPOINT_EVERY: "2" })).toThrow("A checkpoint needs the journal wal.");
   });
 });
@@ -46,8 +47,9 @@ describe("the events and the labels", () => {
   });
 
   it("read the label of a stop point back, and give 0 commits for no point", () => {
-    expect(progressOf(labelOf({ commits: 10, checkpointed: 8 }))).toEqual({ commits: 10, checkpointed: 8 });
-    expect(progressOf(null)).toEqual({ commits: 0, checkpointed: 0 });
+    expect(progressOf(labelOf({ commits: 10, checkpointed: 8, synced: 9 }))).toEqual({ commits: 10, checkpointed: 8, synced: 9 });
+    expect(progressOf(null)).toEqual({ commits: 0, checkpointed: 0, synced: 0 });
+    expect(() => progressOf("commit 10 checkpointed 8")).toThrow(RangeError);
     expect(() => progressOf("write 3")).toThrow(RangeError);
   });
 });
@@ -68,12 +70,14 @@ describe("the commits of a log", () => {
 });
 
 describe("the claims of a power cut", () => {
-  const progress = { commits: 10, checkpointed: 8 };
+  const progress = { commits: 10, checkpointed: 8, synced: 9 };
 
   it("give the bounds of each claim, and one more commit for a cut at a time", () => {
     expect(boundsOf("durable", progress, false)).toEqual({ least: 10, most: 10 });
     expect(boundsOf("durable", progress, true)).toEqual({ least: 10, most: 11 });
     expect(boundsOf("checkpointed", progress, false)).toEqual({ least: 8, most: 10 });
+    expect(boundsOf("synced", progress, false)).toEqual({ least: 9, most: 10 });
+    expect(boundsOf("synced", progress, true)).toEqual({ least: 9, most: 11 });
     expect(boundsOf("none", progress, true)).toBeUndefined();
   });
 
@@ -81,12 +85,14 @@ describe("the claims of a power cut", () => {
     expect(claimProblems(whole(10), "durable", progress, false)).toEqual([]);
     expect(claimProblems(whole(11), "durable", progress, true)).toEqual([]);
     expect(claimProblems(whole(8), "checkpointed", progress, false)).toEqual([]);
-    expect(claimProblems({ file: false }, "checkpointed", { commits: 3, checkpointed: 0 }, false)).toEqual([]);
+    expect(claimProblems(whole(9), "synced", progress, false)).toEqual([]);
+    expect(claimProblems({ file: false }, "checkpointed", { commits: 3, checkpointed: 0, synced: 0 }, false)).toEqual([]);
   });
 
   it("name each break: a lost commit, a broken file, a part of a transaction and a file that does not open", () => {
     expect(claimProblems(whole(9), "durable", progress, false)).toEqual(["The disk kept 9 commits, not 10."]);
     expect(claimProblems(whole(7), "checkpointed", progress, false)).toEqual(["The disk kept 7 commits, not 8 to 10."]);
+    expect(claimProblems(whole(8), "synced", progress, false)).toEqual(["The disk kept 8 commits, not 9 to 10."]);
     expect(claimProblems({ ...whole(10), integrity: ["row 3 missing from index"] }, "durable", progress, false)).toEqual([
       'The integrity check gave ["row 3 missing from index"], not ["ok"].',
     ]);

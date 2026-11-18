@@ -105,6 +105,43 @@ export function readTransaction<T>(db: ReadTransactionDatabase, work: () => T, o
   }
 }
 
+/** The part of a connection that a synced transaction uses. */
+export type SyncedTransactionDatabase = Pick<SqlConnection, "exec" | "prepare" | "isTransaction">;
+
+/**
+ * This function does the work in one write transaction whose commit is on the disk when the function ends. It gives the
+ * result of the work.
+ *
+ * In WAL mode with `synchronous` NORMAL, a commit does not sync the WAL file. A power cut or a crash of the system can
+ * lose the commits after the last checkpoint, and the file stays good. This function sets `synchronous` FULL for its
+ * commit, and sets the earlier value again at the end. Thus a connection keeps the low cost of NORMAL for most writes,
+ * and syncs only the writes that must stay. The sync of the WAL file also keeps each earlier commit of the file.
+ *
+ * A connection with FULL or EXTRA needs no change. The rules of `transaction` apply: the commit, the rollback after an
+ * error, the synchronous work and the dry run. A call in a transaction in progress throws, also with `nested:
+ * "savepoint"`. The commit of the transaction in progress is not the commit of this work.
+ *
+ * @param db - The connection.
+ * @param work - The work. Its writes are part of the transaction.
+ * @param options - The function that gets a failed rollback, and the dry run.
+ */
+export function syncedTransaction<T>(db: SyncedTransactionDatabase, work: () => T, options: TransactionOptions = {}): T {
+  if (isInTransaction(db)) throw new Error("A synced transaction needs its own commit, so it cannot start in a transaction in progress.");
+  const row = db.prepare("PRAGMA synchronous").get() as { readonly synchronous?: number | bigint } | undefined;
+  // The values are 0 OFF, 1 NORMAL, 2 FULL and 3 EXTRA.
+  const earlier = Number(row?.synchronous ?? FULL);
+  if (earlier >= FULL) return run(db, "BEGIN IMMEDIATE", work, options);
+  db.exec(`PRAGMA synchronous = ${String(FULL)}`);
+  try {
+    return run(db, "BEGIN IMMEDIATE", work, options);
+  } finally {
+    db.exec(`PRAGMA synchronous = ${String(earlier)}`);
+  }
+}
+
+/** The value of `PRAGMA synchronous` for FULL. */
+const FULL = 2;
+
 /** This function does the work after a `BEGIN`, or in a savepoint of the transaction in progress. */
 function run<T>(db: TransactionDatabase, begin: string, work: () => T, options: TransactionOptions): T {
   const nested = options.nested ?? "refuse";

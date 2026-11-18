@@ -16,6 +16,7 @@ export const ENV = {
   batch: "POWER_BATCH",
   checkpointEvery: "POWER_CHECKPOINT_EVERY",
   pauseMs: "POWER_PAUSE_MS",
+  syncEvery: "POWER_SYNC_EVERY",
 } as const;
 
 /** The journal of the log: the write-ahead log, or the rollback journal of the open with `wal: false`. */
@@ -33,13 +34,15 @@ export interface PowerSettings {
   readonly checkpointEvery: number;
   /** The pause in ms after each commit. */
   readonly pauseMs: number;
+  /** A synced transaction (`syncedTransaction`) for each multiple of this count of commits. The value 0 gives none. */
+  readonly syncEvery: number;
 }
 
 const SYNCHRONOUS: readonly Synchronous[] = ["OFF", "NORMAL", "FULL", "EXTRA"];
 const JOURNALS: readonly Journal[] = ["wal", "delete"];
 
 /** The default settings. A case of the test changes some of them. */
-export const DEFAULTS: PowerSettings = { synchronous: "FULL", journal: "wal", transactions: 12, batch: 10, checkpointEvery: 0, pauseMs: 0 };
+export const DEFAULTS: PowerSettings = { synchronous: "FULL", journal: "wal", transactions: 12, batch: 10, checkpointEvery: 0, pauseMs: 0, syncEvery: 0 };
 
 /** This function gives the variables of the environment for the settings. */
 export function envOf(settings: PowerSettings): Record<string, string> {
@@ -50,6 +53,7 @@ export function envOf(settings: PowerSettings): Record<string, string> {
     [ENV.batch]: String(settings.batch),
     [ENV.checkpointEvery]: String(settings.checkpointEvery),
     [ENV.pauseMs]: String(settings.pauseMs),
+    [ENV.syncEvery]: String(settings.syncEvery),
   };
 }
 
@@ -72,6 +76,7 @@ export function settingsOf(env: Readonly<Record<string, string | undefined>>): P
     batch: count(ENV.batch, DEFAULTS.batch, 1),
     checkpointEvery: count(ENV.checkpointEvery, DEFAULTS.checkpointEvery, 0),
     pauseMs: count(ENV.pauseMs, DEFAULTS.pauseMs, 0),
+    syncEvery: count(ENV.syncEvery, DEFAULTS.syncEvery, 0),
   };
   if (settings.journal === "delete" && settings.checkpointEvery > 0) throw new RangeError("A checkpoint needs the journal wal.");
   return settings;
@@ -102,21 +107,26 @@ export function parseEvent(value: unknown): PowerEvent {
   return event as PowerEvent;
 }
 
-/** The facts of a stop point: the count of commits, and the count of commits that a complete checkpoint holds. */
+/**
+ * The facts of a stop point: the count of commits, the count of commits that a complete checkpoint holds, and the count
+ * of commits that the last synced transaction holds.
+ */
 export interface Progress {
   readonly commits: number;
   readonly checkpointed: number;
+  readonly synced: number;
 }
 
 /** This function gives the label of the stop point after a commit. */
-export const labelOf = (progress: Progress): string => `commit ${String(progress.commits)} checkpointed ${String(progress.checkpointed)}`;
+export const labelOf = (progress: Progress): string =>
+  `commit ${String(progress.commits)} checkpointed ${String(progress.checkpointed)} synced ${String(progress.synced)}`;
 
 /** This function reads the label of a stop point. The value `null`, for a writer that got to no point, gives 0 commits. */
 export function progressOf(label: string | null): Progress {
-  if (label === null) return { commits: 0, checkpointed: 0 };
-  const match = /^commit (\d+) checkpointed (\d+)$/.exec(label);
+  if (label === null) return { commits: 0, checkpointed: 0, synced: 0 };
+  const match = /^commit (\d+) checkpointed (\d+) synced (\d+)$/.exec(label);
   if (match === null) throw new RangeError(`The label "${label}" is not the label of a commit.`);
-  return { commits: Number(match[1]), checkpointed: Number(match[2]) };
+  return { commits: Number(match[1]), checkpointed: Number(match[2]), synced: Number(match[3]) };
 }
 
 /** The value of the check: what the disk kept of the log. */
@@ -148,11 +158,13 @@ export type Kept =
  *
  * - `durable`: the disk keeps each commit that ended before the cut. This is the claim of `FULL` and `EXTRA`. It is also
  *   the claim of a writer that closed its connections, because the close of the last connection makes a checkpoint.
+ * - `synced`: the disk keeps each commit up to the last synced transaction, and the file stays good. This is the claim of
+ *   `syncedTransaction` on a connection with `NORMAL`. The cut can lose the commits after that transaction.
  * - `checkpointed`: the disk keeps each commit of the last complete checkpoint, and the file stays good. This is the
  *   claim of `NORMAL` with WAL. The cut can lose the commits after that checkpoint.
  * - `none`: the doc makes no claim. The test only records what the disk kept.
  */
-export type Claim = "durable" | "checkpointed" | "none";
+export type Claim = "durable" | "synced" | "checkpointed" | "none";
 
 /** The least and the most count of commits that the disk keeps under a claim. */
 export interface Bounds {
@@ -166,7 +178,8 @@ export interface Bounds {
  */
 export function boundsOf(claim: Claim, progress: Progress, atTime: boolean): Bounds | undefined {
   if (claim === "none") return undefined;
-  return { least: claim === "durable" ? progress.commits : progress.checkpointed, most: progress.commits + (atTime ? 1 : 0) };
+  const least = { durable: progress.commits, synced: progress.synced, checkpointed: progress.checkpointed }[claim];
+  return { least, most: progress.commits + (atTime ? 1 : 0) };
 }
 
 /**

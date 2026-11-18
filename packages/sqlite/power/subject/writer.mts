@@ -10,25 +10,42 @@
  *
  * A checkpoint operates on a second connection with the same `synchronous` setting, because that setting decides its
  * fsync. The writer closes each connection at its end, and the close of the last connection makes a checkpoint too.
+ *
+ * With `syncEvery`, the writer opens the log as `openEventLog` opens it, with one change: an append in a transaction is a
+ * savepoint of that transaction. Then a synced transaction holds the append of each multiple of `syncEvery`.
  */
 import { setTimeout as sleep } from "node:timers/promises";
 import { stopPoint } from "@mark1russell7/rigor-testkit/stop-point";
-import { checkpoint, openDatabase, openEventLog } from "../../src/index.ts";
-import { LOG_FILE, eventsOf, labelOf, parseEvent, settingsOf } from "./protocol.ts";
+import { attach, DEFAULT_TABLE, logSteps } from "../../src/event-log.ts";
+import { checkpoint, migrate, openDatabase, openEventLog, syncedTransaction } from "../../src/index.ts";
+import { LOG_FILE, type PowerEvent, eventsOf, labelOf, parseEvent, settingsOf } from "./protocol.ts";
 
 const settings = settingsOf(process.env);
 const wal = settings.journal === "wal";
-const log = openEventLog(LOG_FILE, parseEvent, { synchronous: settings.synchronous, wal });
+const options = { synchronous: settings.synchronous, wal };
+const main = settings.syncEvery > 0 ? openDatabase(LOG_FILE, options) : undefined;
+if (main !== undefined) migrate(main, logSteps(DEFAULT_TABLE), { name: "log" });
+const log =
+  main === undefined
+    ? openEventLog(LOG_FILE, parseEvent, options)
+    : { ...attach<PowerEvent>(main, DEFAULT_TABLE, parseEvent, undefined, "savepoint"), close: () => main.close() };
 const side = settings.checkpointEvery > 0 ? openDatabase(LOG_FILE, { synchronous: settings.synchronous, wal }) : undefined;
 
 let checkpointed = 0;
+let synced = 0;
 for (let commits = 1; commits <= settings.transactions; commits++) {
-  log.appendAll(eventsOf(commits, settings.batch));
+  const append = (): void => {
+    log.appendAll(eventsOf(commits, settings.batch));
+  };
+  if (main !== undefined && commits % settings.syncEvery === 0) {
+    syncedTransaction(main, append);
+    synced = commits;
+  } else append();
   if (side !== undefined && commits % settings.checkpointEvery === 0) {
     const result = checkpoint(side, "PASSIVE");
     if (!result.busy && result.log >= 0 && result.checkpointed === result.log) checkpointed = commits;
   }
-  stopPoint(labelOf({ commits, checkpointed }));
+  stopPoint(labelOf({ commits, checkpointed, synced }));
   if (settings.pauseMs > 0) await sleep(settings.pauseMs);
 }
 side?.close();

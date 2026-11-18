@@ -142,6 +142,7 @@ describe("the portable entry", () => {
       "readTransaction",
       "schemaVersion",
       "sqlJsConnection",
+      "syncedTransaction",
       "tableColumns",
       "transaction",
       "userVersion",

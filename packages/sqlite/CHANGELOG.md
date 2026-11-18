@@ -1,5 +1,17 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.10
+
+This version adds the synced transaction. The change is backward compatible.
+
+- `syncedTransaction(db, work, options)` does the work in one `BEGIN IMMEDIATE` transaction whose commit is on the disk when the function ends.
+- On a connection with `NORMAL`, it sets `synchronous` to `FULL` for its commit, and sets the earlier value again at the end. A connection with `FULL` or `EXTRA` does not change.
+- A call in a transaction in progress throws. The rules of `transaction` apply to the rollback, the synchronous work and the dry run.
+- The type `SyncedTransactionDatabase` is the part of a connection that the function uses.
+- The power-cut test has two new cases. With `NORMAL`, the disk keeps each commit up to the last synced transaction.
+
+Runtime dependencies: none.
+
 ## 0.3.9
 
 This version changes only the README. The code and the API are the same as in 0.3.8.

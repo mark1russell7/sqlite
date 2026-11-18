@@ -24,7 +24,7 @@ const db = openDatabase("data/app.db", { synchronous: "NORMAL", busyTimeoutMs: 5
 | --- | --- | --- |
 | `wal` | `true` | The write-ahead log. Then readers do not stop a writer. With `"when-writable"`, a file that the process cannot write keeps its journal mode. |
 | `readOnly` | `false` | The connection reads the file and cannot write it. The file must exist. The journal mode does not change. |
-| `synchronous` | `FULL` | The pragma `synchronous`. With WAL, `NORMAL` loses the commits after the last checkpoint at a power cut. The file stays good. See [What a power cut keeps](#what-a-power-cut-keeps). |
+| `synchronous` | `FULL` | The pragma `synchronous`. With WAL, `NORMAL` loses the commits after the last checkpoint at a power cut. The file stays good. See [What a power cut keeps](#what-a-power-cut-keeps). For the commits that must stay, refer to [Synced transactions](#synced-transactions). |
 | `busyTimeoutMs` | `0` | The time that a statement waits for the lock of a different connection. With `0`, the statement fails at once. |
 | `makeFolder` | `false` | The function makes the folder of the file. `folderMode` sets the mode of the new folders. |
 
@@ -51,6 +51,8 @@ A power cut loses each write that is not synced to the disk. The test `power/pow
 | WAL | `NORMAL` | no checkpoint | 6 | 0 |
 | WAL | `NORMAL` | a checkpoint each 4 commits | 10 | 8 |
 | WAL | `NORMAL` | a checkpoint each 25 commits, a cut at 1.5 s | 65 | 50 |
+| WAL | `NORMAL` | a `syncedTransaction` each 4 commits | 10 | 8 |
+| WAL | `NORMAL` | a `syncedTransaction` each 25 commits, a cut at 1.5 s | 65 | 50 |
 | WAL | `NORMAL` | the writer closes the database before the cut | 12 | 12 |
 | WAL | `OFF` | a checkpoint each 4 commits | 10 | 0 |
 | delete | `FULL` | a cut after the commit 6 | 6 | 6 |
@@ -60,6 +62,7 @@ A power cut loses each write that is not synced to the disk. The test `power/pow
 - With WAL, `NORMAL` keeps the commits up to the last checkpoint, and loses each commit after it. The function `checkpoint` and the close of the last connection make a checkpoint.
 - By default, SQLite also makes a checkpoint when the WAL file has 1,000 pages.
 - `OFF` keeps no commit, also after a checkpoint, because it makes no fsync.
+- On a connection with `NORMAL`, a commit of `syncedTransaction` syncs the WAL file. The disk keeps that commit and each commit before it.
 - With the journal `delete`, `NORMAL` kept each commit in this test. The documentation of SQLite tells of a small risk to the file on an old file system.
 - In each case the file opens, and `PRAGMA integrity_check` gives `ok`. No case keeps a part of a transaction.
 
@@ -239,6 +242,28 @@ const matrix = readTransaction(db, () => {
 - The work cannot write. `PRAGMA query_only` is on during the work, and the function sets the earlier value again at the end.
 - The rules of `transaction` apply: the rollback after an error, the synchronous work, `nested` and `onRollbackError`.
 - Keep the work short. A checkpoint cannot pass an open snapshot, so the WAL file grows.
+
+### Synced transactions
+
+`syncedTransaction` does the work in one write transaction whose commit is on the disk when the function ends. Use it on a connection with `NORMAL` for the few writes that must stay after a power cut:
+
+```ts
+import { openDatabase, syncedTransaction } from "@mark1russell7/sqlite";
+
+const db = openDatabase("data/app.db", { synchronous: "NORMAL" });
+
+// Most writes keep the low cost of NORMAL. The grant of a lease must stay after a crash of the system.
+syncedTransaction(db, () => {
+  db.prepare("UPDATE leases SET state = ? WHERE id = ?").run("granted", id);
+});
+```
+
+- The function sets `synchronous` to `FULL` for its commit, and sets the earlier value again at the end. It also does this after an error.
+- In WAL mode, `FULL` syncs the WAL file at the commit. Thus the disk also keeps each earlier commit of the connection.
+- A connection with `FULL` or `EXTRA` needs no change, and the function does not change its setting.
+- A call in a transaction in progress throws, also with `nested: "savepoint"`. The commit of that transaction is not the commit of this work.
+- The rules of `transaction` apply: the rollback after an error, the synchronous work, `onRollbackError` and the dry run with `commit: false`.
+- Each synced commit costs one fsync of the WAL file. Measure the time of the synced writes on the computers of the app.
 
 ## The checkpoint
 

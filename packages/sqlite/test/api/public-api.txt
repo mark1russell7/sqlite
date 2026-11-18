@@ -68,6 +68,7 @@ type StandardIssue: build/schema.d.ts#StandardIssue
 type StandardResult: build/schema.d.ts#StandardResult
 type StandardSchema: build/schema.d.ts#StandardSchema
 type StatementSource: build/statements.d.ts#StatementSource
+type SyncedTransactionDatabase: build/transaction.d.ts#SyncedTransactionDatabase
 type Synchronous: build/database.d.ts#Synchronous
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
@@ -97,6 +98,7 @@ schemaVersion: build/migrate.d.ts#schemaVersion
 snapshot: build/recovery.d.ts#snapshot
 sqlJsConnection: build/sqljs.d.ts#sqlJsConnection
 sqliteFault: build/faults.d.ts#sqliteFault
+syncedTransaction: build/transaction.d.ts#syncedTransaction
 tableColumns: build/migrate.d.ts#tableColumns
 transaction: build/transaction.d.ts#transaction
 userVersion: build/migrate.d.ts#userVersion
@@ -148,6 +150,7 @@ type SqlValue: build/connection.d.ts#SqlValue
 type StandardIssue: build/schema.d.ts#StandardIssue
 type StandardResult: build/schema.d.ts#StandardResult
 type StandardSchema: build/schema.d.ts#StandardSchema
+type SyncedTransactionDatabase: build/transaction.d.ts#SyncedTransactionDatabase
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
 type WasmConnection: build/wasm.d.ts#WasmConnection
@@ -163,6 +166,7 @@ migrate: build/migrate.d.ts#migrate
 readTransaction: build/transaction.d.ts#readTransaction
 schemaVersion: build/migrate.d.ts#schemaVersion
 sqlJsConnection: build/sqljs.d.ts#sqlJsConnection
+syncedTransaction: build/transaction.d.ts#syncedTransaction
 tableColumns: build/migrate.d.ts#tableColumns
 transaction: build/transaction.d.ts#transaction
 userVersion: build/migrate.d.ts#userVersion
@@ -658,6 +662,9 @@ export type Nested = "refuse" | "savepoint";
 ### build/transaction.d.ts#ReadTransactionDatabase
 export type ReadTransactionDatabase = Pick<SqlConnection, "exec" | "prepare" | "isTransaction">;
 
+### build/transaction.d.ts#SyncedTransactionDatabase
+export type SyncedTransactionDatabase = Pick<SqlConnection, "exec" | "prepare" | "isTransaction">;
+
 ### build/transaction.d.ts#TransactionDatabase
 export type TransactionDatabase = Pick<SqlConnection, "exec" | "isTransaction">;
 
@@ -670,6 +677,9 @@ export interface TransactionOptions {
 
 ### build/transaction.d.ts#readTransaction
 export declare function readTransaction<T>(db: ReadTransactionDatabase, work: () => T, options?: TransactionOptions): T;
+
+### build/transaction.d.ts#syncedTransaction
+export declare function syncedTransaction<T>(db: SyncedTransactionDatabase, work: () => T, options?: TransactionOptions): T;
 
 ### build/transaction.d.ts#transaction
 export declare function transaction<T>(db: TransactionDatabase, work: () => T, options?: TransactionOptions): T;
