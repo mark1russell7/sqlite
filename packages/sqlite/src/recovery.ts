@@ -15,7 +15,9 @@ import { parseFunction, type Parse } from "./schema.ts";
 
 /** The result of an integrity check. `problems` has the text of each problem that SQLite found. */
 export interface Integrity {
+  /** This value is `true` when the check found no problem. */
   readonly ok: boolean;
+  /** This list has the text of each problem that the check found, up to the limit of the check. A file that is not a database gives one problem. The list is empty when `ok` is `true`. */
   readonly problems: readonly string[];
 }
 
@@ -334,7 +336,9 @@ function highestPosition(db: DatabaseSync, table: string): number | undefined {
 
 /** The result of `snapshot`. */
 export interface Snapshot {
+  /** This value is the path of the copy. */
   readonly path: string;
+  /** This value is the size of the copy in bytes. */
   readonly bytes: number;
 }
 
