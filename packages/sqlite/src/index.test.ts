@@ -32,6 +32,7 @@ describe("the entry", () => {
       "snapshot",
       "sqlJsConnection",
       "sqliteFault",
+      "syncedTransaction",
       "tableColumns",
       "transaction",
       "userVersion",

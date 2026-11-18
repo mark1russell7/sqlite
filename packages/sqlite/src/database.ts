@@ -38,7 +38,8 @@ export interface OpenOptions {
   readonly readOnly?: boolean | undefined;
   /**
    * This value is the pragma `synchronous`. The default is `FULL`: a commit is on the disk when the call ends. With WAL,
-   * `NORMAL` can lose the last commits at a power cut, and the file stays good.
+   * `NORMAL` can lose the last commits at a power cut, and the file stays good. On a connection with `NORMAL`,
+   * `syncedTransaction` gives the sync of `FULL` to one commit.
    */
   readonly synchronous?: Synchronous | undefined;
   /**

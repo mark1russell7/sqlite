@@ -50,6 +50,7 @@ const CASES: readonly PowerCase[] = [
   { name: "WAL with EXTRA keeps each commit", settings: { synchronous: "EXTRA" }, at: { step: 5 }, claim: "durable" },
   { name: "WAL with NORMAL and no checkpoint keeps a good file", settings: { synchronous: "NORMAL" }, at: { step: 5 }, claim: "checkpointed" },
   { name: "WAL with NORMAL keeps each commit of the last checkpoint", settings: { synchronous: "NORMAL", checkpointEvery: 4 }, at: { step: 9 }, claim: "checkpointed" },
+  { name: "WAL with NORMAL keeps each commit of the last synced transaction", settings: { synchronous: "NORMAL", syncEvery: 4 }, at: { step: 9 }, claim: "synced" },
   { name: "WAL with OFF: a record only", settings: { synchronous: "OFF", checkpointEvery: 4 }, at: { step: 9 }, claim: "none" },
   {
     name: "WAL with FULL, a cut at a time, keeps each commit",
@@ -62,6 +63,12 @@ const CASES: readonly PowerCase[] = [
     settings: { synchronous: "NORMAL", transactions: 1_000, pauseMs: 20, checkpointEvery: 25 },
     at: { ms: 1_500 },
     claim: "checkpointed",
+  },
+  {
+    name: "WAL with NORMAL, a cut at a time, keeps each commit of the last synced transaction",
+    settings: { synchronous: "NORMAL", transactions: 1_000, pauseMs: 20, syncEvery: 25 },
+    at: { ms: 1_500 },
+    claim: "synced",
   },
   { name: "the rollback journal with FULL keeps each commit", settings: { journal: "delete", synchronous: "FULL" }, at: { step: 5 }, claim: "durable" },
   { name: "the rollback journal with NORMAL: a record only", settings: { journal: "delete", synchronous: "NORMAL" }, at: { step: 5 }, claim: "none" },
@@ -130,12 +137,15 @@ describe("the subject of the power-cut test, on this computer", () => {
     execFileSync(process.execPath, [...NODE, join(subject, "power", "subject", script)], { cwd, env: { ...process.env, ...env }, encoding: "utf8" });
 
   it("writes each transaction and reads it back, with no package but the stop point", () => {
-    const work = mkdtempSync(join(tmpdir(), "sqlite-power-work-"));
-    folders.push(work);
-    const env = envOf({ ...DEFAULTS, synchronous: "NORMAL", checkpointEvery: 4 });
-    node("writer.mts", work, env);
-    const kept = JSON.parse(node("check.mts", work, env)) as Kept;
-    expect(kept).toMatchObject({ file: true, opened: true, integrity: ["ok"], commits: DEFAULTS.transactions, problems: [] });
+    // The second writer makes each fourth commit in a synced transaction, on a log that takes a savepoint of it
+    for (const settings of [{ checkpointEvery: 4 }, { syncEvery: 4 }]) {
+      const work = mkdtempSync(join(tmpdir(), "sqlite-power-work-"));
+      folders.push(work);
+      const env = envOf({ ...DEFAULTS, synchronous: "NORMAL", ...settings });
+      node("writer.mts", work, env);
+      const kept = JSON.parse(node("check.mts", work, env)) as Kept;
+      expect(kept).toMatchObject({ file: true, opened: true, integrity: ["ok"], commits: DEFAULTS.transactions, problems: [] });
+    }
   });
 
   it("stops itself at the step of the order, and the stop of a process loses no commit", () => {
@@ -147,7 +157,7 @@ describe("the subject of the power-cut test, on this computer", () => {
     // The writer stops itself with SIGKILL, thus execFileSync throws
     expect(() => node("writer.mts", work, { ...env, [STOP_ENV]: JSON.stringify(order) })).toThrow();
     const lines = parseProgress(readFileSync(progress, "utf8"));
-    expect(lines.at(-1)).toEqual({ step: 3, label: "commit 4 checkpointed 0", stop: true });
+    expect(lines.at(-1)).toEqual({ step: 3, label: "commit 4 checkpointed 0 synced 0", stop: true });
     const kept = JSON.parse(node("check.mts", work, env)) as Kept;
     expect(kept).toMatchObject({ file: true, opened: true, integrity: ["ok"], commits: 4, problems: [] });
   });
