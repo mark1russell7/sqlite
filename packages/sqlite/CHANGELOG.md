@@ -1,5 +1,14 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.11
+
+This version changes only doc comments. The code and the API are the same as in 0.3.10.
+
+- Each field of `Integrity` (`ok`, `problems`) and of `Snapshot` (`path`, `bytes`) has a doc comment.
+- A generator of procedures reads these comments. They become the descriptions of the output fields of the tools `sqlite.checkIntegrity` and `sqlite.snapshot`.
+
+Runtime dependencies: none.
+
 ## 0.3.10
 
 This version adds the synced transaction. The change is backward compatible.
