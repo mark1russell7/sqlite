@@ -1,5 +1,15 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.3.12
+
+This version fixes the error that `readTransaction` and `syncedTransaction` throw after a failed work. The API is the same.
+
+- Each function sets a pragma again at the end: `query_only` or `synchronous`. Before this version, an error of that restore hid the error of the work.
+- After an error of the work, the work error stays the error of the function, and `onRollbackError` gets the error of the restore. For example, SQLite refuses a change of `synchronous` in a transaction that a failed rollback did not end.
+- After a work with no error, an error of the restore is still the error of the function. The commit stays, and the connection keeps the setting of the work.
+
+Runtime dependencies: none.
+
 ## 0.3.11
 
 This version changes only doc comments. The code and the API are the same as in 0.3.10.

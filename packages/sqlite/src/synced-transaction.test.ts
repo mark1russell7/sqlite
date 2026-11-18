@@ -128,4 +128,52 @@ describe("syncedTransaction", () => {
     expect(count()).toBe(0);
     expect(synchronous()).toBe(1);
   });
+
+  it("throws the work error when a failed rollback keeps the transaction, and gives the restore error to onRollbackError", () => {
+    // This connection refuses the ROLLBACK, so the transaction stays. SQLite then refuses the change of synchronous.
+    const stuck = {
+      exec: (sql: string): void => {
+        if (sql === "ROLLBACK") throw new Error("the rollback failed");
+        db.exec(sql);
+      },
+      prepare: (sql: string) => db.prepare(sql),
+      get isTransaction() {
+        return db.isTransaction;
+      },
+    };
+    const work = new Error("the work failed");
+    const later: unknown[] = [];
+    expect(() =>
+      syncedTransaction(
+        stuck,
+        () => {
+          insert(1);
+          throw work;
+        },
+        { onRollbackError: (error) => later.push(error) },
+      ),
+    ).toThrow(work);
+    expect(later.map((error) => (error as Error).message)).toEqual(["the rollback failed", expect.stringMatching(/transaction/i)]);
+    expect(db.isTransaction).toBe(true);
+    db.exec("ROLLBACK");
+    expect(count()).toBe(0);
+    // The restore did not happen, so the connection keeps FULL. That setting syncs more, and loses no commit.
+    expect(synchronous()).toBe(2);
+  });
+
+  it("throws the restore error after a commit, and keeps the commit", () => {
+    const failing = {
+      exec: (sql: string): void => {
+        if (sql === "PRAGMA synchronous = 1") throw new Error("the restore failed");
+        db.exec(sql);
+      },
+      prepare: (sql: string) => db.prepare(sql),
+      get isTransaction() {
+        return db.isTransaction;
+      },
+    };
+    expect(() => syncedTransaction(failing, () => insert(1))).toThrow("the restore failed");
+    expect(count()).toBe(1);
+    expect(synchronous()).toBe(2);
+  });
 });
