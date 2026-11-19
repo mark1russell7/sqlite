@@ -53,7 +53,7 @@ jobs:
       match: ${{ steps.changes.outputs.match }}
     steps:
       - id: changes
-        uses: mark1russell7/template/.github/actions/changes@8384e885a3cb304498a858c531cd86641956480c # main
+        uses: mark1russell7/template/.github/actions/changes@afc3a844abdf898aa6439835fbde1c49a0566e17 # main
         with:
           # A change of the source can change a growth, so it starts the bench too
           paths: |
@@ -183,6 +183,6 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     steps:
-      - uses: mark1russell7/template/.github/actions/gate-summary@8384e885a3cb304498a858c531cd86641956480c # main
+      - uses: mark1russell7/template/.github/actions/gate-summary@afc3a844abdf898aa6439835fbde1c49a0566e17 # main
         with:
           needs: ${{ toJSON(needs) }}
