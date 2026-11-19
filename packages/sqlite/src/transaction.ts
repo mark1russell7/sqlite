@@ -19,6 +19,10 @@ export interface TransactionOptions {
   /**
    * This function gets the error of a rollback that did not end. Then the connection can stay in the transaction, and
    * each later `BEGIN` throws. The work error stays the error that `transaction` throws.
+   *
+   * `readTransaction` and `syncedTransaction` set a pragma again at the end. After an error of the work, this function
+   * also gets an error of that restore. For example, SQLite refuses a change of `synchronous` in a transaction that a
+   * failed rollback did not end.
    */
   readonly onRollbackError?: ((error: unknown) => void) | undefined;
   /**
@@ -89,20 +93,23 @@ export function readTransaction<T>(db: ReadTransactionDatabase, work: () => T, o
   const row = db.prepare("PRAGMA query_only").get() as { readonly query_only?: number | bigint } | undefined;
   const readOnly = Number(row?.query_only ?? 0) !== 0;
   if (!readOnly) db.exec("PRAGMA query_only = ON");
-  try {
-    return run(
-      db,
-      "BEGIN DEFERRED",
-      () => {
-        // A deferred transaction gets its snapshot at its first read. This read starts the snapshot at the call.
-        db.prepare("SELECT 1 FROM sqlite_schema LIMIT 1").get();
-        return work();
-      },
-      options,
-    );
-  } finally {
-    if (!readOnly) db.exec("PRAGMA query_only = OFF");
-  }
+  return restoreAfter(
+    () => {
+      if (!readOnly) db.exec("PRAGMA query_only = OFF");
+    },
+    () =>
+      run(
+        db,
+        "BEGIN DEFERRED",
+        () => {
+          // A deferred transaction gets its snapshot at its first read. This read starts the snapshot at the call.
+          db.prepare("SELECT 1 FROM sqlite_schema LIMIT 1").get();
+          return work();
+        },
+        options,
+      ),
+    options,
+  );
 }
 
 /** The part of a connection that a synced transaction uses. */
@@ -132,11 +139,33 @@ export function syncedTransaction<T>(db: SyncedTransactionDatabase, work: () => 
   const earlier = Number(row?.synchronous ?? FULL);
   if (earlier >= FULL) return run(db, "BEGIN IMMEDIATE", work, options);
   db.exec(`PRAGMA synchronous = ${String(FULL)}`);
+  return restoreAfter(
+    () => db.exec(`PRAGMA synchronous = ${String(earlier)}`),
+    () => run(db, "BEGIN IMMEDIATE", work, options),
+    options,
+  );
+}
+
+/**
+ * This function does the body, then the restore of a setting, and gives the result of the body. After an error of the
+ * body, the function `onRollbackError` gets an error of the restore. The body error stays the error that the function
+ * throws. After a body with no error, an error of the restore is the error of the function. Then the
+ * connection keeps the setting of the body.
+ */
+function restoreAfter<T>(restore: () => void, body: () => T, options: TransactionOptions): T {
+  let result: T;
   try {
-    return run(db, "BEGIN IMMEDIATE", work, options);
-  } finally {
-    db.exec(`PRAGMA synchronous = ${String(earlier)}`);
+    result = body();
+  } catch (error) {
+    try {
+      restore();
+    } catch (failed) {
+      options.onRollbackError?.(failed);
+    }
+    throw error;
   }
+  restore();
+  return result;
 }
 
 /** The value of `PRAGMA synchronous` for FULL. */
