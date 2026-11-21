@@ -1,5 +1,14 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.4.0
+
+This version adds `counts()` to `EventLog`. It gives the count of events of each type, from the index of the types, with no read of the bodies.
+
+- A caller that reads only some types of a large log can count the events of the other types, and parse none of them.
+- `EventLog` has a new member. Code that makes its own object of the interface type also makes `counts`. Thus the version is a MINOR change before 1.0.0.
+
+Runtime dependencies: none.
+
 ## 0.3.12
 
 This version fixes the error that `readTransaction` and `syncedTransaction` throw after a failed work. The API is the same.

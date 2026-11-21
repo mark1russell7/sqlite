@@ -342,6 +342,7 @@ log.append({ id: "e1", at: "2026-11-14T00:00:00Z", type: "added", name: "b" }); 
 - `read()` gives the events in the order of the log. `entries()` gives each event with its position `seq`.
 - The option `after` gives only the events after a position. `types` gives only the events of some types. `limit` sets the highest count.
 - `head()` gives the position of the last event. A read with `after: head` later gives only the new events.
+- `counts()` gives the count of events of each type. It reads the index of the types, not the bodies. A caller that reads only some types counts the other events with it.
 - `get(id)` gives the event with an id and its position.
 
 ### A log in the file of the app

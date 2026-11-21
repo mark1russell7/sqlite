@@ -378,6 +378,7 @@ export interface EventLog<E extends LogRecord> {
   append<P = never>(event: E, accept?: Accept<E, P>): Appended<E, P>;
   appendAll<P = never>(events: Iterable<E>, accept?: Accept<E, P>): Appended<E, P>[];
   count(): number;
+  counts(): ReadonlyMap<string, number>;
   recover(): void;
 }
 

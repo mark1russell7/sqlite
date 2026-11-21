@@ -81,6 +81,21 @@ describe("openEventLog", () => {
     again.close();
   });
 
+  it("counts the events of each type in the order of the types, and a duplicate counts one time", () => {
+    const log = openEventLog(file, parse);
+    expect(log.counts()).toEqual(new Map());
+    log.appendAll([note("a", "a", "spot"), note("b"), note("c", "c", "spot"), note("d", "d", "body"), note("a", "a", "spot")]);
+    expect([...log.counts()]).toEqual([
+      ["body", 1],
+      ["note", 1],
+      ["spot", 2],
+    ]);
+    // The counts give the events of the types that a read leaves out.
+    const read = [...log.read({ types: ["note"] })].length;
+    expect(log.count() - read).toBe([...log.counts()].filter(([type]) => type !== "note").reduce((sum, [, n]) => sum + n, 0));
+    log.close();
+  });
+
   it("does not write a refused event, and gives its problem", () => {
     const log = openEventLog(file, parse);
     const refuseB = (event: Note): string | undefined => (event.id === "b" ? `no ${event.id}` : undefined);
@@ -116,6 +131,7 @@ describe("openEventLog", () => {
       }),
     ).toThrow("a bug");
     expect(() => log.count()).toThrow(/broken/);
+    expect(() => log.counts()).toThrow(/broken/);
     expect(() => log.head()).toThrow(BrokenLogError);
     expect(() => log.get("r1")).toThrow(BrokenLogError);
     expect(() => [...log.read()]).toThrow(/broken/);
