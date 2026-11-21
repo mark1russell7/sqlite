@@ -1,8 +1,8 @@
 /**
  * This entry has the part of the package that operates on each connection with the type `SqlConnection`. The part is
- * the migrations, the projections, the transactions, the checkpoint, the clear and the event log. This entry imports no
- * module of Node.js. Thus it operates in a browser too, for example on sql.js or SQLite in WebAssembly through an adapter
- * of the package.
+ * the migrations, the projections, the transactions, the checkpoint, the clear, the event log and the snapshot of a
+ * fold. This entry imports no module of Node.js. Thus it operates in a browser too, for example on sql.js or SQLite in
+ * WebAssembly through an adapter of the package.
  *
  * @packageDocumentation
  */
@@ -44,6 +44,7 @@ export {
   type LogRecord,
   type ReadOptions,
 } from "./event-log.ts";
+export { FOLD_SNAPSHOT_PART, FOLD_SNAPSHOT_SCHEMA_VERSION, foldSnapshot, type FoldKey, type FoldMark, type FoldRow, type FoldSnapshot, type MarkLog } from "./fold-snapshot.ts";
 export { SchemaError, type Parse, type StandardIssue, type StandardResult, type StandardSchema } from "./schema.ts";
 export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";
 export { checkpoint, type CheckpointDatabase, type CheckpointMode, type Checkpointed } from "./checkpoint.ts";

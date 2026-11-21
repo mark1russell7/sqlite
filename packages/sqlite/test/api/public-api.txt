@@ -24,11 +24,19 @@ type EventLog: build/event-log.d.ts#EventLog
 type EventLogFile: build/event-log-file.d.ts#EventLogFile
 type EventLogFileOptions: build/event-log-file.d.ts#EventLogFileOptions
 type EventLogOptions: build/event-log.d.ts#EventLogOptions
+FOLD_SNAPSHOT_PART: build/fold-snapshot.d.ts#FOLD_SNAPSHOT_PART
+FOLD_SNAPSHOT_SCHEMA_VERSION: build/fold-snapshot.d.ts#FOLD_SNAPSHOT_SCHEMA_VERSION
+type FoldKey: build/fold-snapshot.d.ts#FoldKey
+type FoldMark: build/fold-snapshot.d.ts#FoldMark
+type FoldRow: build/fold-snapshot.d.ts#FoldRow
+type FoldSnapshot: build/fold-snapshot.d.ts#FoldSnapshot
+type FoldSnapshotFile: build/fold-snapshot-file.d.ts#FoldSnapshotFile
 type Integrity: build/recovery.d.ts#Integrity
 IntegrityError: build/recovery.d.ts#IntegrityError
 type IntegrityOptions: build/recovery.d.ts#IntegrityOptions
 type LogEntry: build/event-log.d.ts#LogEntry
 type LogRecord: build/event-log.d.ts#LogRecord
+type MarkLog: build/fold-snapshot.d.ts#MarkLog
 type MigrateOptions: build/migrate.d.ts#MigrateOptions
 type Migrated: build/migrate.d.ts#Migrated
 Migration: build/index.d.ts#Migration
@@ -85,11 +93,13 @@ confineToFile: build/confine.d.ts#confineToFile
 eachStatement: build/statements.d.ts#eachStatement
 ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
+foldSnapshot: build/fold-snapshot.d.ts#foldSnapshot
 listRecoveries: build/checked-log.d.ts#listRecoveries
 migrate: build/migrate.d.ts#migrate
 openCheckedEventLog: build/checked-log.d.ts#openCheckedEventLog
 openDatabase: build/database.d.ts#openDatabase
 openEventLog: build/event-log-file.d.ts#openEventLog
+openFoldSnapshot: build/fold-snapshot-file.d.ts#openFoldSnapshot
 openOrQuarantine: build/recovery.d.ts#openOrQuarantine
 quarantine: build/recovery.d.ts#quarantine
 readTransaction: build/transaction.d.ts#readTransaction
@@ -125,8 +135,15 @@ EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
 type Equal: build/event-log.d.ts#Equal
 type EventLog: build/event-log.d.ts#EventLog
 type EventLogOptions: build/event-log.d.ts#EventLogOptions
+FOLD_SNAPSHOT_PART: build/fold-snapshot.d.ts#FOLD_SNAPSHOT_PART
+FOLD_SNAPSHOT_SCHEMA_VERSION: build/fold-snapshot.d.ts#FOLD_SNAPSHOT_SCHEMA_VERSION
+type FoldKey: build/fold-snapshot.d.ts#FoldKey
+type FoldMark: build/fold-snapshot.d.ts#FoldMark
+type FoldRow: build/fold-snapshot.d.ts#FoldRow
+type FoldSnapshot: build/fold-snapshot.d.ts#FoldSnapshot
 type LogEntry: build/event-log.d.ts#LogEntry
 type LogRecord: build/event-log.d.ts#LogRecord
+type MarkLog: build/fold-snapshot.d.ts#MarkLog
 type MigrateOptions: build/migrate.d.ts#MigrateOptions
 type Migrated: build/migrate.d.ts#Migrated
 type Migration: build/migrate.d.ts#Migration
@@ -162,6 +179,7 @@ checkpoint: build/checkpoint.d.ts#checkpoint
 clearDatabase: build/clear.d.ts#clearDatabase
 ensureProjection: build/projection.d.ts#ensureProjection
 eventLog: build/event-log.d.ts#eventLog
+foldSnapshot: build/fold-snapshot.d.ts#foldSnapshot
 migrate: build/migrate.d.ts#migrate
 readTransaction: build/transaction.d.ts#readTransaction
 schemaVersion: build/migrate.d.ts#schemaVersion
@@ -434,6 +452,53 @@ export type SqliteFaultKind = "sql" | "internal" | "permission" | "aborted" | "b
 
 ### build/faults.d.ts#sqliteFault
 export declare function sqliteFault(error: unknown): SqliteFault | undefined;
+
+### build/fold-snapshot-file.d.ts#FoldSnapshotFile
+export interface FoldSnapshotFile extends FoldSnapshot {
+  close(): void;
+}
+
+### build/fold-snapshot-file.d.ts#openFoldSnapshot
+export declare function openFoldSnapshot(path: string, options?: OpenOptions): FoldSnapshotFile;
+
+### build/fold-snapshot.d.ts#FOLD_SNAPSHOT_PART
+export declare const FOLD_SNAPSHOT_PART = "fold-snapshot";
+
+### build/fold-snapshot.d.ts#FOLD_SNAPSHOT_SCHEMA_VERSION
+export declare const FOLD_SNAPSHOT_SCHEMA_VERSION = 1;
+
+### build/fold-snapshot.d.ts#FoldKey
+export interface FoldKey {
+  readonly version: number;
+  readonly key: string;
+}
+
+### build/fold-snapshot.d.ts#FoldMark
+export interface FoldMark {
+  readonly seq: number;
+  readonly id: string;
+}
+
+### build/fold-snapshot.d.ts#FoldRow
+export interface FoldRow {
+  readonly part: string;
+  readonly value: string;
+}
+
+### build/fold-snapshot.d.ts#FoldSnapshot
+export interface FoldSnapshot {
+  read<T>(key: FoldKey, log: MarkLog, work: (mark: FoldMark, rows: Iterable<FoldRow>) => T): T | undefined;
+  write(key: FoldKey, mark: FoldMark, rows: Iterable<FoldRow>): number;
+  clear(): void;
+}
+
+### build/fold-snapshot.d.ts#MarkLog
+export interface MarkLog {
+  get(id: string): Pick<LogEntry<unknown>, "seq"> | undefined;
+}
+
+### build/fold-snapshot.d.ts#foldSnapshot
+export declare function foldSnapshot(db: SqlConnection): FoldSnapshot;
 
 ### build/index.d.ts#Migration
 export type Migration<D extends SqlConnection = DatabaseSync> = Migration$1<D>;

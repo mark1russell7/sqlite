@@ -385,6 +385,38 @@ const reports = eventLog(db, { parse: Report, table: "reports" }); // EventLog<z
 - `recover` throws when the rollback did not end. Then the error has `stuck: true`. Open the log again.
 - A lock that is not free at the start does not break the log. The call throws, and nothing changes.
 
+### The snapshot of a fold
+
+An app folds the events of its log into a state at each start. Thus the work of a start grows with the age of the log. A snapshot keeps the state at one position of the log. The next start reads the snapshot, and it folds only the events after that position.
+
+```ts
+import { openEventLog, openFoldSnapshot } from "@mark1russell7/sqlite";
+
+const log = openEventLog("app.sqlite", parse);
+const snapshot = openFoldSnapshot("app.snapshot.sqlite");
+const key = { version: 1, key: settingsHash };
+
+// The start: the state of the snapshot, or an empty state.
+let after = 0;
+let state = snapshot.read(key, log, (mark, rows) => {
+  after = mark.seq;
+  return stateOf(rows);
+}) ?? emptyState;
+for (const entry of log.entries({ after })) state = fold(state, entry.event);
+
+// Later: the state up to the last event of the fold.
+snapshot.write(key, { seq: last.seq, id: last.event.id }, rowsOf(state));
+```
+
+- The rows are pairs of a part name and a text. `write` reads them one at a time, thus the app does not make one large text of the state.
+- `write` replaces the snapshot in one transaction. When the rows throw, the old snapshot stays.
+- `read` gives `undefined` for a different `version` or `key`. Change the version at each change of the fold or of its rows.
+- `read` also gives `undefined` when the log has no event with the id of the mark at its position. A different log, or a log that lost events, then gets a full fold.
+- A snapshot is correct only for an append-only log. After a salvage of the log, use a new key or `clear`.
+- The rows are valid only in the work of `read`, in one read transaction. When the count of the rows is not the count of the write, the read throws.
+- A snapshot is a projection, in the part `fold-snapshot` of its file. A file of a different version of its tables opens with no snapshot.
+- `openFoldSnapshot` gives a snapshot in its own file. A broken snapshot file then does not change the log. `foldSnapshot` gives a snapshot on a connection, also in the portable entry.
+
 ## The faults of SQLite
 
 `sqliteFault` gives the kind of an error of SQLite and the action that it needs. The function reads the result code, not the text of the message.
@@ -510,7 +542,7 @@ for (const entry of listRecoveries("data/events.db")) {
 
 ## The portable entry
 
-The entry `@mark1russell7/sqlite/portable` has the migrations, the projections, the transactions, the checkpoint, the clear and the event log. It imports no module of Node.js. Thus it operates in a browser too.
+The entry `@mark1russell7/sqlite/portable` has the migrations, the projections, the transactions, the checkpoint, the clear, the event log and the snapshot of a fold. It imports no module of Node.js. Thus it operates in a browser too.
 
 These functions take a `SqlConnection`: the part of a connection that the package uses. It has `exec`, `prepare` and `isTransaction`. Its statements have `get`, `all`, `run` and `iterate`. `DatabaseSync` of `node:sqlite` has these members. For a different driver, write a small adapter.
 
