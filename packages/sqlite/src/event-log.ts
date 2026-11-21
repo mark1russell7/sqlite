@@ -76,6 +76,11 @@ export interface EventLog<E extends LogRecord> {
   /** This function gives the count of events in the log. */
   count(): number;
   /**
+   * This function gives the count of events of each type in the log, in the order of the types. It reads the index of the
+   * types, not the bodies. Thus a caller that reads only some types can count the events of the other types.
+   */
+  counts(): ReadonlyMap<string, number>;
+  /**
    * This function makes a broken log usable again. It throws a `BrokenLogError` when the rollback of the failed write did
    * not end, and then the log stays broken. After it, the caller replays the log, so its state is equal to the file again.
    */
@@ -269,6 +274,11 @@ export function attach<E extends LogRecord>(db: SqlConnection, table: string, pa
     count() {
       guard();
       return (db.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
+    },
+    counts() {
+      guard();
+      const rows = db.prepare(`SELECT type, count(*) AS n FROM ${table} GROUP BY type ORDER BY type`).all() as { type: string; n: number }[];
+      return new Map(rows.map((row) => [row.type, row.n]));
     },
     recover() {
       if (broken === undefined) return;
