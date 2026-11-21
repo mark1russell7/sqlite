@@ -1,5 +1,16 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.4.1
+
+This version adds the snapshot of a fold. An app that folds its log at each start keeps its state at one position of the log. The next start reads the snapshot, and it folds only the events after that position.
+
+- `openFoldSnapshot` opens a snapshot in its own file. `foldSnapshot` gives a snapshot on a connection, also in the portable entry.
+- `write` replaces the snapshot in one transaction, and it reads the rows one at a time. `read` gives the rows in one read transaction.
+- `read` gives no snapshot for a different version or key, or when the log does not have the event of the mark at its position.
+- The change adds exports only. Thus the version is a PATCH change before 1.0.0.
+
+Runtime dependencies: none.
+
 ## 0.4.0
 
 This version adds `counts()` to `EventLog`. It gives the count of events of each type, from the index of the types, with no read of the bodies.

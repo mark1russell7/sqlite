@@ -78,7 +78,7 @@ const parse = (value: unknown): Note => value as Note;
 describe("the portable entry", () => {
   it("imports no module out of the package at run time", () => {
     expect(closure("portable.ts")).toEqual({
-      modules: ["checkpoint.ts", "clear.ts", "event-log.ts", "migrate.ts", "portable.ts", "probe.ts", "projection.ts", "schema.ts", "sqljs.ts", "transaction.ts", "wasm.ts"],
+      modules: ["checkpoint.ts", "clear.ts", "event-log.ts", "fold-snapshot.ts", "migrate.ts", "portable.ts", "probe.ts", "projection.ts", "schema.ts", "sqljs.ts", "transaction.ts", "wasm.ts"],
       external: [],
     });
   });
@@ -90,6 +90,7 @@ describe("the portable entry", () => {
         "clear.ts",
         "connection.ts",
         "event-log.ts",
+        "fold-snapshot.ts",
         "migrate.ts",
         "portable.ts",
         "probe.ts",
@@ -131,6 +132,8 @@ describe("the portable entry", () => {
     expect(names).toEqual([
       "BrokenLogError",
       "EVENT_LOG_SCHEMA_VERSION",
+      "FOLD_SNAPSHOT_PART",
+      "FOLD_SNAPSHOT_SCHEMA_VERSION",
       "SCHEMA_VERSIONS_TABLE",
       "SchemaError",
       "addMissingColumns",
@@ -138,6 +141,7 @@ describe("the portable entry", () => {
       "clearDatabase",
       "ensureProjection",
       "eventLog",
+      "foldSnapshot",
       "migrate",
       "readTransaction",
       "schemaVersion",
