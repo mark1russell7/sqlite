@@ -44,7 +44,7 @@ export {
   type LogRecord,
   type ReadOptions,
 } from "./event-log.ts";
-export { FOLD_SNAPSHOT_PART, FOLD_SNAPSHOT_SCHEMA_VERSION, foldSnapshot, type FoldKey, type FoldMark, type FoldRow, type FoldSnapshot, type MarkLog } from "./fold-snapshot.ts";
+export { FOLD_SNAPSHOT_PART, FOLD_SNAPSHOT_SCHEMA_VERSION, foldSnapshot, type ChunkOptions, type FoldKey, type FoldMark, type FoldRow, type FoldSnapshot, type MarkLog } from "./fold-snapshot.ts";
 export { SchemaError, type Parse, type StandardIssue, type StandardResult, type StandardSchema } from "./schema.ts";
 export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";
 export { checkpoint, type CheckpointDatabase, type CheckpointMode, type Checkpointed } from "./checkpoint.ts";

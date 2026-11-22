@@ -51,7 +51,7 @@ export {
   type ReadOptions,
 } from "./event-log.ts";
 export { openEventLog, type EventLogFile, type EventLogFileOptions } from "./event-log-file.ts";
-export { FOLD_SNAPSHOT_PART, FOLD_SNAPSHOT_SCHEMA_VERSION, foldSnapshot, type FoldKey, type FoldMark, type FoldRow, type FoldSnapshot, type MarkLog } from "./fold-snapshot.ts";
+export { FOLD_SNAPSHOT_PART, FOLD_SNAPSHOT_SCHEMA_VERSION, foldSnapshot, type ChunkOptions, type FoldKey, type FoldMark, type FoldRow, type FoldSnapshot, type MarkLog } from "./fold-snapshot.ts";
 export { openFoldSnapshot, type FoldSnapshotFile } from "./fold-snapshot-file.ts";
 export { SchemaError, type Parse, type StandardIssue, type StandardResult, type StandardSchema } from "./schema.ts";
 export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";

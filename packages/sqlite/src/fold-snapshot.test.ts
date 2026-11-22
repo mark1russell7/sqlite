@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "./database.ts";
 import { eventLog, type EventLog, type LogRecord } from "./event-log.ts";
-import { FOLD_SNAPSHOT_PART, foldSnapshot, type FoldMark, type FoldRow } from "./fold-snapshot.ts";
+import { FOLD_SNAPSHOT_PART, FOLD_SNAPSHOT_SCHEMA_VERSION, foldSnapshot, type FoldMark, type FoldRow } from "./fold-snapshot.ts";
 import { openFoldSnapshot } from "./fold-snapshot-file.ts";
 import { schemaVersion, setSchemaVersion } from "./migrate.ts";
 
@@ -158,7 +158,7 @@ describe("the snapshot of a fold", () => {
     foldSnapshot(db).write(KEY, SECOND, ROWS);
     setSchemaVersion(db, FOLD_SNAPSHOT_PART, 99);
     const store = foldSnapshot(db);
-    expect(schemaVersion(db, FOLD_SNAPSHOT_PART)).toBe(1);
+    expect(schemaVersion(db, FOLD_SNAPSHOT_PART)).toBe(FOLD_SNAPSHOT_SCHEMA_VERSION);
     expect(readAll(store)).toBeUndefined();
   });
 
@@ -167,5 +167,114 @@ describe("the snapshot of a fold", () => {
     store.write(KEY, SECOND, ROWS);
     expect(readAll(store)).toEqual({ mark: SECOND, rows: ROWS });
     expect(log.count()).toBe(3);
+  });
+});
+
+// The rows of a snapshot of `size` items.
+const many = (size: number): FoldRow[] => Array.from({ length: size }, (_, index) => ({ part: "item[]", value: `{"n":${index}}` }));
+// The count of the rows in the table, with the orphans.
+const tableRows = (): number => Number((db.prepare("SELECT COUNT(*) AS n FROM fold_snapshot_rows").get() as { n: number }).n);
+const THIRD: FoldMark = { seq: 3, id: "e-c" };
+
+describe("the write of a snapshot in chunks", () => {
+  it("gives the snapshot of a write in one transaction, and keeps no old row", async () => {
+    const store = foldSnapshot(db);
+    store.write(KEY, SECOND, ROWS);
+    const rows = many(25);
+    await expect(store.writeInChunks(KEY, THIRD, rows, { rows: 4 })).resolves.toBe(25);
+    expect(readAll(store)).toEqual({ mark: THIRD, rows });
+    expect(tableRows()).toBe(25);
+    // A new connection reads the same snapshot.
+    expect(readAll(foldSnapshot(db))).toEqual({ mark: THIRD, rows });
+  });
+
+  it("pauses after each transaction, and a read in a pause gives the old snapshot", async () => {
+    const store = foldSnapshot(db);
+    store.write(KEY, SECOND, ROWS);
+    const seen: (FoldMark | undefined)[] = [];
+    const pause = (): Promise<void> => {
+      seen.push(readAll(store)?.mark);
+      return Promise.resolve();
+    };
+    await store.writeInChunks(KEY, THIRD, many(10), { rows: 4, pause });
+    // Three transactions of rows (4, 4 and 2 rows, and the third finds the end), and the removal of the old rows.
+    expect(seen).toEqual([SECOND, SECOND, SECOND, THIRD]);
+  });
+
+  it("ends a transaction at the limit of characters, with one row at the least", async () => {
+    const store = foldSnapshot(db);
+    let pauses = 0;
+    const rows = [{ part: "big", value: "x".repeat(50) }, ...many(3)];
+    await store.writeInChunks(KEY, SECOND, rows, { chars: 10, pause: () => Promise.resolve(void (pauses += 1)) });
+    expect(readAll(store)?.rows).toEqual(rows);
+    // One row in each transaction, and the transaction that finds the end.
+    expect(pauses).toBe(5);
+  });
+
+  it("lets the timers of the app operate in the write", async () => {
+    const store = foldSnapshot(db);
+    let rowsAtTimer = -1;
+    setTimeout(() => {
+      rowsAtTimer = tableRows();
+    }, 0);
+    await store.writeInChunks(KEY, SECOND, many(50), { rows: 10 });
+    expect(rowsAtTimer).toBeGreaterThan(0);
+    expect(rowsAtTimer).toBeLessThan(50);
+  });
+
+  it("keeps the old snapshot when the rows throw, and the next write removes the orphans", async () => {
+    const store = foldSnapshot(db);
+    store.write(KEY, SECOND, ROWS);
+    function* broken(): Generator<FoldRow> {
+      yield* many(6);
+      throw new Error("a broken state");
+    }
+    await expect(store.writeInChunks(KEY, THIRD, broken(), { rows: 4 })).rejects.toThrow("a broken state");
+    expect(readAll(store)).toEqual({ mark: SECOND, rows: ROWS });
+    // The first chunk of the stopped write stays as orphans until the next write.
+    expect(tableRows()).toBe(3 + 4);
+    await store.writeInChunks(KEY, THIRD, many(2));
+    expect(tableRows()).toBe(2);
+  });
+
+  it("removes the orphans of a stopped write on both sides of the snapshot", async () => {
+    const store = foldSnapshot(db);
+    await store.writeInChunks(KEY, SECOND, ROWS);
+    await store.writeInChunks(KEY, SECOND, ROWS);
+    // The second write put its rows after the rows of the first. A stop gives orphans before and after the snapshot.
+    db.exec("INSERT INTO fold_snapshot_rows (n, part, value) VALUES (1, 'old', '1'), (100, 'stopped', '1'), (101, 'stopped', '2')");
+    expect(readAll(store)?.rows).toEqual(ROWS);
+    await store.writeInChunks(KEY, THIRD, many(5), { rows: 2 });
+    expect(readAll(store)).toEqual({ mark: THIRD, rows: many(5) });
+    expect(tableRows()).toBe(5);
+  });
+
+  it("stops at a clear before the change of the meta row, and refuses a second write in the write", async () => {
+    const store = foldSnapshot(db);
+    store.write(KEY, SECOND, ROWS);
+    let pauses = 0;
+    const pause = async (): Promise<void> => {
+      pauses += 1;
+      if (pauses === 1) {
+        expect(() => store.write(KEY, THIRD, ROWS)).toThrow("A write in chunks of the snapshot is in progress.");
+        await expect(store.writeInChunks(KEY, THIRD, ROWS)).rejects.toThrow("A write in chunks of the snapshot is in progress.");
+        store.clear();
+      }
+    };
+    await expect(store.writeInChunks(KEY, THIRD, many(10), { rows: 4, pause })).rejects.toThrow("A clear of the snapshot stopped the write.");
+    expect(readAll(store)).toBeUndefined();
+    expect(tableRows()).toBe(0);
+    // The stopped write frees the snapshot for the next write.
+    await expect(store.writeInChunks(KEY, THIRD, ROWS)).resolves.toBe(3);
+  });
+
+  it("refuses a chunk that is not a whole number of 1 or more rows, or that has no characters", async () => {
+    const store = foldSnapshot(db);
+    await expect(store.writeInChunks(KEY, SECOND, ROWS, { rows: 0 })).rejects.toThrow(RangeError);
+    await expect(store.writeInChunks(KEY, SECOND, ROWS, { rows: 1.5 })).rejects.toThrow(RangeError);
+    await expect(store.writeInChunks(KEY, SECOND, ROWS, { chars: 0 })).rejects.toThrow(RangeError);
+    await expect(store.writeInChunks(KEY, { seq: 0, id: "e-a" }, ROWS)).rejects.toThrow(RangeError);
+    // A refused write leaves no write in progress.
+    expect(store.write(KEY, SECOND, ROWS)).toBe(3);
   });
 });

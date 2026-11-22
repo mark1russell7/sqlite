@@ -14,6 +14,7 @@ type CheckedEventLogOptions: build/checked-log.d.ts#CheckedEventLogOptions
 type CheckpointDatabase: build/checkpoint.d.ts#CheckpointDatabase
 type CheckpointMode: build/checkpoint.d.ts#CheckpointMode
 type Checkpointed: build/checkpoint.d.ts#Checkpointed
+type ChunkOptions: build/fold-snapshot.d.ts#ChunkOptions
 type ClearOptions: build/clear.d.ts#ClearOptions
 type ColumnDefinitions: build/migrate.d.ts#ColumnDefinitions
 type ConfinableDatabase: build/confine.d.ts#ConfinableDatabase
@@ -129,6 +130,7 @@ BrokenLogError: build/event-log.d.ts#BrokenLogError
 type CheckpointDatabase: build/checkpoint.d.ts#CheckpointDatabase
 type CheckpointMode: build/checkpoint.d.ts#CheckpointMode
 type Checkpointed: build/checkpoint.d.ts#Checkpointed
+type ChunkOptions: build/fold-snapshot.d.ts#ChunkOptions
 type ClearOptions: build/clear.d.ts#ClearOptions
 type ColumnDefinitions: build/migrate.d.ts#ColumnDefinitions
 EVENT_LOG_SCHEMA_VERSION: build/event-log.d.ts#EVENT_LOG_SCHEMA_VERSION
@@ -461,11 +463,18 @@ export interface FoldSnapshotFile extends FoldSnapshot {
 ### build/fold-snapshot-file.d.ts#openFoldSnapshot
 export declare function openFoldSnapshot(path: string, options?: OpenOptions): FoldSnapshotFile;
 
+### build/fold-snapshot.d.ts#ChunkOptions
+export interface ChunkOptions {
+  readonly rows?: number;
+  readonly chars?: number;
+  readonly pause?: () => Promise<void>;
+}
+
 ### build/fold-snapshot.d.ts#FOLD_SNAPSHOT_PART
 export declare const FOLD_SNAPSHOT_PART = "fold-snapshot";
 
 ### build/fold-snapshot.d.ts#FOLD_SNAPSHOT_SCHEMA_VERSION
-export declare const FOLD_SNAPSHOT_SCHEMA_VERSION = 1;
+export declare const FOLD_SNAPSHOT_SCHEMA_VERSION = 2;
 
 ### build/fold-snapshot.d.ts#FoldKey
 export interface FoldKey {
@@ -489,6 +498,7 @@ export interface FoldRow {
 export interface FoldSnapshot {
   read<T>(key: FoldKey, log: MarkLog, work: (mark: FoldMark, rows: Iterable<FoldRow>) => T): T | undefined;
   write(key: FoldKey, mark: FoldMark, rows: Iterable<FoldRow>): number;
+  writeInChunks(key: FoldKey, mark: FoldMark, rows: Iterable<FoldRow>, options?: ChunkOptions): Promise<number>;
   clear(): void;
 }
 

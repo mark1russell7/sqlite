@@ -1,5 +1,17 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.5.0
+
+This version adds `writeInChunks` to `FoldSnapshot`. It replaces a large snapshot in many short transactions, with a pause between two of them. Thus the write does not stop the event loop for the time of the whole write.
+
+- The new rows go next to the rows of the old snapshot. One short transaction changes the meta row to them. Then the write removes the old rows in chunks.
+- A read in the write gives the old snapshot. When the rows throw or a transaction fails, the old snapshot stays. The next write removes the orphan rows.
+- A `clear` before the change of the meta row stops the write. A second write in the write is an error.
+- The tables of the snapshot have version 2: the meta row keeps the position of the first row. A file of version 1 opens with no snapshot, and the app writes it again.
+- `FoldSnapshot` has a new member. Code that makes its own object of the interface type also makes `writeInChunks`. Thus the version is a MINOR change before 1.0.0.
+
+Runtime dependencies: none.
+
 ## 0.4.1
 
 This version adds the snapshot of a fold. An app that folds its log at each start keeps its state at one position of the log. The next start reads the snapshot, and it folds only the events after that position.
