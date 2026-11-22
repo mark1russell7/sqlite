@@ -474,7 +474,7 @@ export interface ChunkOptions {
 export declare const FOLD_SNAPSHOT_PART = "fold-snapshot";
 
 ### build/fold-snapshot.d.ts#FOLD_SNAPSHOT_SCHEMA_VERSION
-export declare const FOLD_SNAPSHOT_SCHEMA_VERSION = 2;
+export declare const FOLD_SNAPSHOT_SCHEMA_VERSION = 1;
 
 ### build/fold-snapshot.d.ts#FoldKey
 export interface FoldKey {

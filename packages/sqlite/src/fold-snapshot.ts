@@ -11,19 +11,22 @@ import { ensureProjection } from "./projection.ts";
 import { readTransaction, transaction } from "./transaction.ts";
 
 /**
- * The version of the tables of a snapshot. A different version of the file opens with no snapshot. Version 2 keeps the
- * position of the first row in the meta row. Thus a write in chunks puts its rows next to the rows of the old snapshot.
+ * The version of the tables of a snapshot. A different version of the file opens with no snapshot. The write in chunks
+ * keeps version 1, the version of 0.4: it puts its rows in a third table. Thus 0.4 and this version read the snapshot of
+ * each other. A file of 0.5.0 has version 2, and it opens with no snapshot.
  */
-export const FOLD_SNAPSHOT_SCHEMA_VERSION = 2;
+export const FOLD_SNAPSHOT_SCHEMA_VERSION = 1;
 
 /** The name of the part of a snapshot in the table `schema_versions`. */
 export const FOLD_SNAPSHOT_PART = "fold-snapshot";
 
 const META = "fold_snapshot";
 const ROWS = "fold_snapshot_rows";
+const NEXT = "fold_snapshot_next";
+// The name of the rows table for one moment in the swap of the two tables of rows.
+const SWAP = "fold_snapshot_swap";
 
-// The rows of the snapshot are the rows with `n` from `first` to `first + count - 1`. Each other row is an orphan: a row
-// of an old snapshot, or of a write that stopped. The next write removes the orphans.
+// The tables of version 1. The table of the rows has only the rows of the snapshot, in the order of the write.
 const SCHEMA = `
 CREATE TABLE ${META} (
   one INTEGER PRIMARY KEY CHECK (one = 1),
@@ -31,7 +34,6 @@ CREATE TABLE ${META} (
   key TEXT NOT NULL,
   seq INTEGER NOT NULL,
   id TEXT NOT NULL,
-  first INTEGER NOT NULL,
   count INTEGER NOT NULL
 );
 CREATE TABLE ${ROWS} (
@@ -40,6 +42,10 @@ CREATE TABLE ${ROWS} (
   value TEXT NOT NULL
 );
 `;
+
+// The table of a write in chunks: the new rows before the swap, and the old rows after it. A file of 0.4 does not have
+// it, thus the open makes it. The reads of 0.4 do not read it.
+const NEXT_SCHEMA = `CREATE TABLE IF NOT EXISTS ${NEXT} (n INTEGER PRIMARY KEY, part TEXT NOT NULL, value TEXT NOT NULL)`;
 
 /** The position of a snapshot in its log: the position of the last event of the fold, and the id of that event. */
 export interface FoldMark {
@@ -98,13 +104,14 @@ export interface FoldSnapshot {
    * This function replaces the snapshot in many short transactions, and gives the count of its rows. Between two
    * transactions, it awaits the pause. Thus a large snapshot does not stop the event loop for the time of the whole write.
    *
-   * The function first removes the orphans. Then it writes the new rows next to the rows of the old snapshot, in chunks.
-   * One short transaction then changes the meta row to the new rows. At last, the function removes the old rows in chunks.
-   * A read before the change of the meta row gives the old snapshot, and a read after it gives the new snapshot.
+   * The function writes the new rows in chunks to a second table of rows. One short transaction then swaps the two tables
+   * and changes the meta row. At last, the function removes the old rows in chunks. A read before the swap gives the old
+   * snapshot, and a read after it gives the new snapshot. The table of the snapshot has only the rows of the snapshot.
    *
    * The function reads `rows` over all the pauses. Thus the rows must come from a value that does not change in the
-   * write. When `rows` throws or a transaction fails, the old snapshot stays, and the promise rejects with that error. A
-   * `clear` before the change of the meta row stops the write, and the promise rejects. A second write in the write is an error.
+   * write. When `rows` throws or a transaction fails, the old snapshot stays, and the promise rejects with that error. The
+   * next write removes the rows of the stopped write. A `clear` before the swap stops the write, and the promise rejects.
+   * A second write in the write is an error.
    */
   writeInChunks(key: FoldKey, mark: FoldMark, rows: Iterable<FoldRow>, options?: ChunkOptions): Promise<number>;
   /** This function removes the snapshot. A write in chunks in progress stops. */
@@ -117,7 +124,6 @@ interface MetaRow {
   readonly key: string;
   readonly seq: number;
   readonly id: string;
-  readonly first: number;
   readonly count: number;
 }
 
@@ -136,45 +142,34 @@ const pauseOneTimer = (): Promise<void> => new Promise((resolve) => setTimeout(r
  * @param db - The connection.
  */
 export function foldSnapshot(db: SqlConnection): FoldSnapshot {
-  ensureProjection(db, SCHEMA, { version: FOLD_SNAPSHOT_SCHEMA_VERSION, part: FOLD_SNAPSHOT_PART, tables: [META, ROWS] });
-  const meta = db.prepare(`SELECT version, key, seq, id, first, count FROM ${META} WHERE one = 1`);
-  const rows = db.prepare(`SELECT part, value FROM ${ROWS} WHERE n >= ? AND n < ? ORDER BY n`);
+  ensureProjection(db, SCHEMA, { version: FOLD_SNAPSHOT_SCHEMA_VERSION, part: FOLD_SNAPSHOT_PART, tables: [META, ROWS, NEXT] });
+  db.exec(NEXT_SCHEMA);
+  const meta = db.prepare(`SELECT version, key, seq, id, count FROM ${META} WHERE one = 1`);
+  const rows = db.prepare(`SELECT part, value FROM ${ROWS} ORDER BY n`);
   const insertRow = db.prepare(`INSERT INTO ${ROWS} (n, part, value) VALUES (?, ?, ?)`);
-  const insertMeta = db.prepare(`INSERT INTO ${META} (one, version, key, seq, id, first, count) VALUES (1, ?, ?, ?, ?, ?, ?)`);
-  const lowest = db.prepare(`SELECT MIN(n) AS n FROM ${ROWS} WHERE n >= ? AND n < ?`);
-  const highest = db.prepare(`SELECT MAX(n) AS n FROM ${ROWS}`);
-  const removeRange = db.prepare(`DELETE FROM ${ROWS} WHERE n >= ? AND n < ?`);
+  const insertNext = db.prepare(`INSERT INTO ${NEXT} (n, part, value) VALUES (?, ?, ?)`);
+  const insertMeta = db.prepare(`INSERT INTO ${META} (one, version, key, seq, id, count) VALUES (1, ?, ?, ?, ?, ?)`);
+  const removeNext = db.prepare(`DELETE FROM ${NEXT} WHERE n IN (SELECT n FROM ${NEXT} ORDER BY n LIMIT ?)`);
   const remove = (): void => {
     db.exec(`DELETE FROM ${ROWS}`);
+    db.exec(`DELETE FROM ${NEXT}`);
     db.exec(`DELETE FROM ${META}`);
   };
   const metaRow = (): MetaRow | undefined => {
     const row = meta.get() as Record<keyof MetaRow, number | string> | undefined;
     if (row === undefined) return undefined;
-    return { version: Number(row.version), key: String(row.key), seq: Number(row.seq), id: String(row.id), first: Number(row.first), count: Number(row.count) };
+    return { version: Number(row.version), key: String(row.key), seq: Number(row.seq), id: String(row.id), count: Number(row.count) };
   };
   // The write in chunks in progress: a clear sets `cleared`, and the write stops at its next transaction.
   let writing: { cleared: boolean } | undefined;
 
-  // This function removes the rows outside the rows of the meta row, at most `size` rows in each transaction.
-  const removeOrphans = async (size: number, pause: () => Promise<void>, check: () => void): Promise<void> => {
-    const live = metaRow();
-    const keep = live === undefined ? { from: 0, to: 0 } : { from: live.first, to: live.first + live.count };
-    for (const [from, to] of [
-      [Number.MIN_SAFE_INTEGER, keep.from],
-      [keep.to, Number.MAX_SAFE_INTEGER],
-    ] as const) {
-      for (;;) {
-        check();
-        const done = transaction(db, () => {
-          const low = (lowest.get(from, to) as { n: number | null } | undefined)?.n;
-          if (low === null || low === undefined) return true;
-          removeRange.run(Number(low), Math.min(Number(low) + size, to));
-          return false;
-        });
-        if (done) break;
-        await pause();
-      }
+  // This function empties the table of the next rows, at most `size` rows in each transaction, with a pause after each.
+  const emptyNext = async (size: number, pause: () => Promise<void>, check: () => void): Promise<void> => {
+    for (;;) {
+      check();
+      const removed = transaction(db, () => Number(removeNext.run(size).changes));
+      if (removed === 0) return;
+      await pause();
     }
   };
 
@@ -191,7 +186,7 @@ export function foldSnapshot(db: SqlConnection): FoldSnapshot {
           *[Symbol.iterator]() {
             if (!open) throw new Error("The rows of a snapshot are valid only in the work of its read.");
             let read = 0;
-            for (const one of rows.iterate(row.first, row.first + row.count) as Iterable<{ part: string; value: string }>) {
+            for (const one of rows.iterate() as Iterable<{ part: string; value: string }>) {
               read += 1;
               yield { part: one.part, value: one.value };
             }
@@ -216,7 +211,7 @@ export function foldSnapshot(db: SqlConnection): FoldSnapshot {
           count += 1;
           insertRow.run(count, one.part, one.value);
         }
-        insertMeta.run(key.version, key.key, mark.seq, mark.id, 1, count);
+        insertMeta.run(key.version, key.key, mark.seq, mark.id, count);
         return count;
       });
     },
@@ -237,9 +232,8 @@ export function foldSnapshot(db: SqlConnection): FoldSnapshot {
       const iterator = given[Symbol.iterator]();
       let finished = false;
       try {
-        await removeOrphans(size, pause, check);
-        check();
-        const first = transaction(db, () => Number((highest.get() as { n: number | null } | undefined)?.n ?? 0) + 1);
+        // The rows of a stopped write go first. Thus the new rows have the positions 1 to `count`.
+        await emptyNext(size, pause, check);
         let count = 0;
         while (!finished) {
           check();
@@ -251,20 +245,24 @@ export function foldSnapshot(db: SqlConnection): FoldSnapshot {
                 finished = true;
                 return;
               }
-              insertRow.run(first + count, step.value.part, step.value.value);
               count += 1;
+              insertNext.run(count, step.value.part, step.value.value);
               used += step.value.part.length + step.value.value.length;
             }
           });
           await pause();
         }
         check();
+        // A rename changes only the schema, thus the swap is short for each size of the snapshot.
         transaction(db, () => {
+          db.exec(`ALTER TABLE ${ROWS} RENAME TO ${SWAP}`);
+          db.exec(`ALTER TABLE ${NEXT} RENAME TO ${ROWS}`);
+          db.exec(`ALTER TABLE ${SWAP} RENAME TO ${NEXT}`);
           db.exec(`DELETE FROM ${META}`);
-          insertMeta.run(key.version, key.key, mark.seq, mark.id, first, count);
+          insertMeta.run(key.version, key.key, mark.seq, mark.id, count);
         });
         // The new snapshot is in place. A clear from here on removes it, and the end of the write has nothing to stop.
-        await removeOrphans(size, pause, () => undefined);
+        await emptyNext(size, pause, () => undefined);
         return count;
       } finally {
         if (!finished) iterator.return?.();
