@@ -1,5 +1,18 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.6.0
+
+This version keeps the tables of the snapshot at version 1, the version of 0.4. A start after an update from 0.4 reads its snapshot. A start after a return to 0.4 reads the snapshot of this version.
+
+- In 0.5.0, the tables had version 2. Thus the first open after an update from 0.4 removed the snapshot, and the next start folded the whole log. A return to 0.4 removed the snapshot again.
+- `writeInChunks` puts its rows in a second table, `fold_snapshot_next`. One short transaction renames the two tables and changes the meta row. Then the write removes the old rows in chunks.
+- The table of the rows has only the rows of the snapshot, also after a stopped write. Thus the read of 0.4 gives one whole snapshot at each moment.
+- The open makes the second table when a file of 0.4 does not have it. A file of 0.5.0 opens with no snapshot, and the app writes it again.
+- `writeInChunks` does a `PASSIVE` checkpoint after each transaction, before the pause. The new option `checkpoint` (default true) turns it off. On a disk of 5.5 MB/s, the automatic checkpoint in one commit of a chunk stopped the event loop for 1.8 s. Each checkpoint of one chunk copies the pages of that chunk only.
+- The value of `FOLD_SNAPSHOT_SCHEMA_VERSION` changes from 2 to 1, and a file of 0.5.0 loses its snapshot. Thus the version is a MINOR change before 1.0.0.
+
+Runtime dependencies: none.
+
 ## 0.5.0
 
 This version adds `writeInChunks` to `FoldSnapshot`. It replaces a large snapshot in many short transactions, with a pause between two of them. Thus the write does not stop the event loop for the time of the whole write.

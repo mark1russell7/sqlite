@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -172,8 +172,26 @@ describe("the snapshot of a fold", () => {
 
 // The rows of a snapshot of `size` items.
 const many = (size: number): FoldRow[] => Array.from({ length: size }, (_, index) => ({ part: "item[]", value: `{"n":${index}}` }));
-// The count of the rows in the table, with the orphans.
+// The count of the rows in the table of the snapshot, and in the table of a write in chunks.
 const tableRows = (): number => Number((db.prepare("SELECT COUNT(*) AS n FROM fold_snapshot_rows").get() as { n: number }).n);
+const nextRows = (): number => Number((db.prepare("SELECT COUNT(*) AS n FROM fold_snapshot_next").get() as { n: number }).n);
+
+// The read and the write of 0.4, with the statements of src/fold-snapshot.ts at v0.4.1. Its read reads each row of the
+// table of rows, and its write replaces the rows and the meta row in one transaction.
+const read04 = (): { count: number; rows: FoldRow[] } | undefined => {
+  const meta = db.prepare("SELECT version, key, seq, id, count FROM fold_snapshot WHERE one = 1").get() as { count: number } | undefined;
+  if (meta === undefined) return undefined;
+  const rows = db.prepare("SELECT part, value FROM fold_snapshot_rows ORDER BY n").all() as unknown as FoldRow[];
+  return { count: Number(meta.count), rows: rows.map((row) => ({ part: row.part, value: row.value })) };
+};
+const write04 = (mark: FoldMark, rows: readonly FoldRow[]): void => {
+  db.exec("BEGIN IMMEDIATE");
+  db.exec("DELETE FROM fold_snapshot_rows");
+  db.exec("DELETE FROM fold_snapshot");
+  rows.forEach((row, index) => db.prepare("INSERT INTO fold_snapshot_rows (n, part, value) VALUES (?, ?, ?)").run(index + 1, row.part, row.value));
+  db.prepare("INSERT INTO fold_snapshot (one, version, key, seq, id, count) VALUES (1, ?, ?, ?, ?, ?)").run(KEY.version, KEY.key, mark.seq, mark.id, rows.length);
+  db.exec("COMMIT");
+};
 const THIRD: FoldMark = { seq: 3, id: "e-c" };
 
 describe("the write of a snapshot in chunks", () => {
@@ -215,14 +233,14 @@ describe("the write of a snapshot in chunks", () => {
     const store = foldSnapshot(db);
     let rowsAtTimer = -1;
     setTimeout(() => {
-      rowsAtTimer = tableRows();
+      rowsAtTimer = nextRows();
     }, 0);
     await store.writeInChunks(KEY, SECOND, many(50), { rows: 10 });
     expect(rowsAtTimer).toBeGreaterThan(0);
     expect(rowsAtTimer).toBeLessThan(50);
   });
 
-  it("keeps the old snapshot when the rows throw, and the next write removes the orphans", async () => {
+  it("keeps the old snapshot when the rows throw, and the next write removes the rows of the stopped write", async () => {
     const store = foldSnapshot(db);
     store.write(KEY, SECOND, ROWS);
     function* broken(): Generator<FoldRow> {
@@ -231,22 +249,99 @@ describe("the write of a snapshot in chunks", () => {
     }
     await expect(store.writeInChunks(KEY, THIRD, broken(), { rows: 4 })).rejects.toThrow("a broken state");
     expect(readAll(store)).toEqual({ mark: SECOND, rows: ROWS });
-    // The first chunk of the stopped write stays as orphans until the next write.
-    expect(tableRows()).toBe(3 + 4);
+    // The first chunk of the stopped write stays in the table of the next rows until the next write.
+    expect(tableRows()).toBe(3);
+    expect(nextRows()).toBe(4);
     await store.writeInChunks(KEY, THIRD, many(2));
     expect(tableRows()).toBe(2);
+    expect(nextRows()).toBe(0);
   });
 
-  it("removes the orphans of a stopped write on both sides of the snapshot", async () => {
+  it("does a checkpoint after each transaction, thus the log file keeps the pages of one transaction", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fold-snapshot-"));
+    try {
+      // The highest size of the log file at the pauses of one write of 20 transactions of about 100 KB each.
+      const largestLog = async (name: string, options: { checkpoint?: boolean }): Promise<number> => {
+        const path = join(dir, `${name}.sqlite`);
+        const file = openDatabase(path);
+        try {
+          // No automatic checkpoint: only the checkpoints of the write copy pages.
+          file.exec("PRAGMA wal_autocheckpoint = 0");
+          const store = foldSnapshot(file);
+          let largest = 0;
+          const pause = (): Promise<void> => {
+            largest = Math.max(largest, statSync(`${path}-wal`).size);
+            return Promise.resolve();
+          };
+          const rows = Array.from({ length: 1000 }, (_, n) => ({ part: `p${n}`, value: "v".repeat(2000) }));
+          await store.writeInChunks(KEY, SECOND, rows, { rows: 50, pause, ...options });
+          expect(readAll(store, KEY)?.rows).toHaveLength(1000);
+          return largest;
+        } finally {
+          file.close();
+        }
+      };
+      const each = await largestLog("each", {});
+      const none = await largestLog("none", { checkpoint: false });
+      // One transaction writes about 100 KB of pages. Without the checkpoints, the log keeps each of the 2 MB.
+      expect(each).toBeLessThan(400_000);
+      expect(none).toBeGreaterThan(2_000_000);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("gives one whole snapshot to a read in each pause of a write, before and after the swap of the tables", async () => {
     const store = foldSnapshot(db);
-    await store.writeInChunks(KEY, SECOND, ROWS);
-    await store.writeInChunks(KEY, SECOND, ROWS);
-    // The second write put its rows after the rows of the first. A stop gives orphans before and after the snapshot.
-    db.exec("INSERT INTO fold_snapshot_rows (n, part, value) VALUES (1, 'old', '1'), (100, 'stopped', '1'), (101, 'stopped', '2')");
-    expect(readAll(store)?.rows).toEqual(ROWS);
+    store.write(KEY, SECOND, ROWS);
+    // A read in a pause uses the statements of the store. After the swap, SQLite prepares them again on the new tables.
+    const seen: { mark: FoldMark; rows: FoldRow[] }[] = [];
+    const pause = (): Promise<void> => {
+      const read = readAll(store);
+      if (read !== undefined) seen.push(read);
+      return Promise.resolve();
+    };
+    await store.writeInChunks(KEY, THIRD, many(10), { rows: 4, pause });
+    expect(seen.length).toBeGreaterThan(3);
+    for (const each of seen) expect(each).toEqual(each.mark.seq === SECOND.seq ? { mark: SECOND, rows: ROWS } : { mark: THIRD, rows: many(10) });
+    expect(seen[0]?.mark).toEqual(SECOND);
+    expect(seen.at(-1)?.mark).toEqual(THIRD);
+  });
+
+  it("keeps the tables of 0.4, thus each version reads the snapshot of the other", async () => {
+    // A file of 0.4: version 1, the meta row and the rows, and no table of the next rows.
+    db.exec(`
+      CREATE TABLE fold_snapshot (one INTEGER PRIMARY KEY CHECK (one = 1), version INTEGER NOT NULL, key TEXT NOT NULL, seq INTEGER NOT NULL, id TEXT NOT NULL, count INTEGER NOT NULL);
+      CREATE TABLE fold_snapshot_rows (n INTEGER PRIMARY KEY, part TEXT NOT NULL, value TEXT NOT NULL);
+    `);
+    setSchemaVersion(db, FOLD_SNAPSHOT_PART, 1);
+    write04(SECOND, ROWS);
+    const store = foldSnapshot(db);
+    expect(schemaVersion(db, FOLD_SNAPSHOT_PART)).toBe(1);
+    expect(readAll(store)).toEqual({ mark: SECOND, rows: ROWS });
+    // In each pause of a write in chunks, the read of 0.4 gives one whole snapshot: the old one or the new one.
+    const seen: ({ count: number; rows: FoldRow[] } | undefined)[] = [];
+    const pause = (): Promise<void> => {
+      seen.push(read04());
+      return Promise.resolve();
+    };
+    await store.writeInChunks(KEY, THIRD, many(10), { rows: 4, pause });
+    expect(seen[0]).toEqual({ count: 3, rows: ROWS });
+    expect(seen.at(-1)).toEqual({ count: 10, rows: many(10) });
+    for (const each of seen) expect(each?.rows).toHaveLength(each?.count ?? -1);
+    // After a stopped write, the read of 0.4 gives the last whole snapshot.
+    function* broken(): Generator<FoldRow> {
+      yield* many(6);
+      throw new Error("a broken state");
+    }
+    await expect(store.writeInChunks(KEY, SECOND, broken(), { rows: 4 })).rejects.toThrow("a broken state");
+    expect(read04()).toEqual({ count: 10, rows: many(10) });
+    // This version reads a write of 0.4. Its next write in chunks first removes the rows of the stopped write.
+    write04(SECOND, ROWS);
+    expect(readAll(store)).toEqual({ mark: SECOND, rows: ROWS });
     await store.writeInChunks(KEY, THIRD, many(5), { rows: 2 });
     expect(readAll(store)).toEqual({ mark: THIRD, rows: many(5) });
-    expect(tableRows()).toBe(5);
+    expect(nextRows()).toBe(0);
   });
 
   it("stops at a clear before the change of the meta row, and refuses a second write in the write", async () => {
@@ -264,6 +359,7 @@ describe("the write of a snapshot in chunks", () => {
     await expect(store.writeInChunks(KEY, THIRD, many(10), { rows: 4, pause })).rejects.toThrow("A clear of the snapshot stopped the write.");
     expect(readAll(store)).toBeUndefined();
     expect(tableRows()).toBe(0);
+    expect(nextRows()).toBe(0);
     // The stopped write frees the snapshot for the next write.
     await expect(store.writeInChunks(KEY, THIRD, ROWS)).resolves.toBe(3);
   });

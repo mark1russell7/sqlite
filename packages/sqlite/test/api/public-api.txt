@@ -468,13 +468,14 @@ export interface ChunkOptions {
   readonly rows?: number;
   readonly chars?: number;
   readonly pause?: () => Promise<void>;
+  readonly checkpoint?: boolean;
 }
 
 ### build/fold-snapshot.d.ts#FOLD_SNAPSHOT_PART
 export declare const FOLD_SNAPSHOT_PART = "fold-snapshot";
 
 ### build/fold-snapshot.d.ts#FOLD_SNAPSHOT_SCHEMA_VERSION
-export declare const FOLD_SNAPSHOT_SCHEMA_VERSION = 2;
+export declare const FOLD_SNAPSHOT_SCHEMA_VERSION = 1;
 
 ### build/fold-snapshot.d.ts#FoldKey
 export interface FoldKey {
