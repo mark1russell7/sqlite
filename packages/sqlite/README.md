@@ -406,10 +406,17 @@ for (const entry of log.entries({ after })) state = fold(state, entry.event);
 
 // Later: the state up to the last event of the fold.
 snapshot.write(key, { seq: last.seq, id: last.event.id }, rowsOf(state));
+
+// A large state: many short transactions, with a turn of the event loop between two of them.
+await snapshot.writeInChunks(key, { seq: last.seq, id: last.event.id }, rowsOf(state), { rows: 1000, chars: 1_000_000 });
 ```
 
 - The rows are pairs of a part name and a text. `write` reads them one at a time, thus the app does not make one large text of the state.
 - `write` replaces the snapshot in one transaction. When the rows throw, the old snapshot stays.
+- `writeInChunks` replaces the snapshot in many short transactions, with a pause between two of them. Thus a large snapshot does not stop the event loop for the time of the whole write.
+- `writeInChunks` puts the new rows next to the old rows. One short transaction then changes the meta row to the new rows. A read before that change gives the old snapshot.
+- The rows of `writeInChunks` must come from a value that does not change in the write, because the write reads them over all its pauses.
+- A stopped write leaves orphan rows, and the old snapshot stays. The next write removes the orphans.
 - `read` gives `undefined` for a different `version` or `key`. Change the version at each change of the fold or of its rows.
 - `read` also gives `undefined` when the log has no event with the id of the mark at its position. A different log, or a log that lost events, then gets a full fold.
 - A snapshot is correct only for an append-only log. After a salvage of the log, use a new key or `clear`.
