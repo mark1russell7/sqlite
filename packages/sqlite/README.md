@@ -416,6 +416,7 @@ await snapshot.writeInChunks(key, { seq: last.seq, id: last.event.id }, rowsOf(s
 - `writeInChunks` replaces the snapshot in many short transactions, with a pause between two of them. Thus a large snapshot does not stop the event loop for the time of the whole write.
 - `writeInChunks` puts the new rows in a second table. One short transaction then swaps the two tables and changes the meta row. A read before the swap gives the old snapshot.
 - The rows of `writeInChunks` must come from a value that does not change in the write, because the write reads them over all its pauses.
+- `writeInChunks` does a `PASSIVE` checkpoint after each transaction. Thus each checkpoint copies one transaction, and no commit copies the pages of many. The option `checkpoint: false` turns it off.
 - A stopped write leaves its rows in the second table, and the old snapshot stays. The next write removes them.
 - The table of the snapshot has only the rows of the snapshot. Thus 0.4 reads a snapshot of `writeInChunks`, and `writeInChunks` reads a snapshot of 0.4.
 - `read` gives `undefined` for a different `version` or `key`. Change the version at each change of the fold or of its rows.

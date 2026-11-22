@@ -5,6 +5,7 @@
  *
  * @packageDocumentation
  */
+import { checkpoint } from "./checkpoint.ts";
 import type { SqlConnection } from "./connection.ts";
 import type { LogEntry } from "./event-log.ts";
 import { ensureProjection } from "./projection.ts";
@@ -80,6 +81,13 @@ export interface ChunkOptions {
   readonly chars?: number;
   /** The write awaits this function after each transaction. The default waits for one timer of 0 ms. */
   readonly pause?: () => Promise<void>;
+  /**
+   * When this value is true, the write does a `PASSIVE` checkpoint after each transaction, before the pause. Thus each
+   * checkpoint copies the pages of one transaction only. The default is true.
+   * With false, the automatic checkpoint of SQLite copies the pages of many transactions in one commit. On a slow disk, that
+   * commit is the longest block of the write. A database that is not in WAL mode does no checkpoint.
+   */
+  readonly checkpoint?: boolean;
 }
 
 /** The snapshot of a connection. `foldSnapshot` gives it. */
@@ -172,6 +180,11 @@ export function foldSnapshot(db: SqlConnection): FoldSnapshot {
       await pause();
     }
   };
+  // This function gives the step after each transaction of a write in chunks: the checkpoint, and then the pause.
+  const stepAfter = (pause: () => Promise<void>, copy: boolean) => async (): Promise<void> => {
+    if (copy) checkpoint(db, "PASSIVE");
+    await pause();
+  };
 
   return {
     read(key, log, work) {
@@ -220,7 +233,7 @@ export function foldSnapshot(db: SqlConnection): FoldSnapshot {
       checkMark(mark);
       const size = options.rows ?? DEFAULT_ROWS;
       const chars = options.chars ?? DEFAULT_CHARS;
-      const pause = options.pause ?? pauseOneTimer;
+      const pause = stepAfter(options.pause ?? pauseOneTimer, options.checkpoint ?? true);
       if (!Number.isSafeInteger(size) || size < 1) throw new RangeError(`The rows of a chunk must be a whole number of 1 or more, not ${String(size)}.`);
       if (!(chars >= 1)) throw new RangeError(`The characters of a chunk must be 1 or more, not ${String(chars)}.`);
       if (writing !== undefined) throw new Error("A write in chunks of the snapshot is in progress.");

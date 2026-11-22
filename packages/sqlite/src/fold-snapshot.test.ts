@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -255,6 +255,57 @@ describe("the write of a snapshot in chunks", () => {
     await store.writeInChunks(KEY, THIRD, many(2));
     expect(tableRows()).toBe(2);
     expect(nextRows()).toBe(0);
+  });
+
+  it("does a checkpoint after each transaction, thus the log file keeps the pages of one transaction", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fold-snapshot-"));
+    try {
+      // The highest size of the log file at the pauses of one write of 20 transactions of about 100 KB each.
+      const largestLog = async (name: string, options: { checkpoint?: boolean }): Promise<number> => {
+        const path = join(dir, `${name}.sqlite`);
+        const file = openDatabase(path);
+        try {
+          // No automatic checkpoint: only the checkpoints of the write copy pages.
+          file.exec("PRAGMA wal_autocheckpoint = 0");
+          const store = foldSnapshot(file);
+          let largest = 0;
+          const pause = (): Promise<void> => {
+            largest = Math.max(largest, statSync(`${path}-wal`).size);
+            return Promise.resolve();
+          };
+          const rows = Array.from({ length: 1000 }, (_, n) => ({ part: `p${n}`, value: "v".repeat(2000) }));
+          await store.writeInChunks(KEY, SECOND, rows, { rows: 50, pause, ...options });
+          expect(readAll(store, KEY)?.rows).toHaveLength(1000);
+          return largest;
+        } finally {
+          file.close();
+        }
+      };
+      const each = await largestLog("each", {});
+      const none = await largestLog("none", { checkpoint: false });
+      // One transaction writes about 100 KB of pages. Without the checkpoints, the log keeps each of the 2 MB.
+      expect(each).toBeLessThan(400_000);
+      expect(none).toBeGreaterThan(2_000_000);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("gives one whole snapshot to a read in each pause of a write, before and after the swap of the tables", async () => {
+    const store = foldSnapshot(db);
+    store.write(KEY, SECOND, ROWS);
+    // A read in a pause uses the statements of the store. After the swap, SQLite prepares them again on the new tables.
+    const seen: { mark: FoldMark; rows: FoldRow[] }[] = [];
+    const pause = (): Promise<void> => {
+      const read = readAll(store);
+      if (read !== undefined) seen.push(read);
+      return Promise.resolve();
+    };
+    await store.writeInChunks(KEY, THIRD, many(10), { rows: 4, pause });
+    expect(seen.length).toBeGreaterThan(3);
+    for (const each of seen) expect(each).toEqual(each.mark.seq === SECOND.seq ? { mark: SECOND, rows: ROWS } : { mark: THIRD, rows: many(10) });
+    expect(seen[0]?.mark).toEqual(SECOND);
+    expect(seen.at(-1)?.mark).toEqual(THIRD);
   });
 
   it("keeps the tables of 0.4, thus each version reads the snapshot of the other", async () => {

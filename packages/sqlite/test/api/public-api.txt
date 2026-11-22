@@ -468,6 +468,7 @@ export interface ChunkOptions {
   readonly rows?: number;
   readonly chars?: number;
   readonly pause?: () => Promise<void>;
+  readonly checkpoint?: boolean;
 }
 
 ### build/fold-snapshot.d.ts#FOLD_SNAPSHOT_PART
