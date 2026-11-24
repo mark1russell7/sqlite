@@ -8,6 +8,7 @@
 
 type Accept: build/event-log.d.ts#Accept
 type Appended: build/event-log.d.ts#Appended
+type AutocheckpointDatabase: build/checkpoint.d.ts#AutocheckpointDatabase
 BrokenLogError: build/event-log.d.ts#BrokenLogError
 type CheckedEventLog: build/checked-log.d.ts#CheckedEventLog
 type CheckedEventLogOptions: build/checked-log.d.ts#CheckedEventLogOptions
@@ -106,6 +107,7 @@ quarantine: build/recovery.d.ts#quarantine
 readTransaction: build/transaction.d.ts#readTransaction
 salvageEventLog: build/recovery.d.ts#salvageEventLog
 schemaVersion: build/migrate.d.ts#schemaVersion
+setAutocheckpoint: build/checkpoint.d.ts#setAutocheckpoint
 snapshot: build/recovery.d.ts#snapshot
 sqlJsConnection: build/sqljs.d.ts#sqlJsConnection
 sqliteFault: build/faults.d.ts#sqliteFault
@@ -126,6 +128,7 @@ quietSqliteWarning: build/warning.d.ts#quietSqliteWarning
 
 type Accept: build/event-log.d.ts#Accept
 type Appended: build/event-log.d.ts#Appended
+type AutocheckpointDatabase: build/checkpoint.d.ts#AutocheckpointDatabase
 BrokenLogError: build/event-log.d.ts#BrokenLogError
 type CheckpointDatabase: build/checkpoint.d.ts#CheckpointDatabase
 type CheckpointMode: build/checkpoint.d.ts#CheckpointMode
@@ -185,6 +188,7 @@ foldSnapshot: build/fold-snapshot.d.ts#foldSnapshot
 migrate: build/migrate.d.ts#migrate
 readTransaction: build/transaction.d.ts#readTransaction
 schemaVersion: build/migrate.d.ts#schemaVersion
+setAutocheckpoint: build/checkpoint.d.ts#setAutocheckpoint
 sqlJsConnection: build/sqljs.d.ts#sqlJsConnection
 syncedTransaction: build/transaction.d.ts#syncedTransaction
 tableColumns: build/migrate.d.ts#tableColumns
@@ -262,6 +266,9 @@ export declare function listRecoveries(path: string, options?: Pick<QuarantineOp
 ### build/checked-log.d.ts#openCheckedEventLog
 export declare function openCheckedEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options?: CheckedEventLogOptions<E>): CheckedEventLog<E>;
 
+### build/checkpoint.d.ts#AutocheckpointDatabase
+export type AutocheckpointDatabase = Pick<SqlConnection, "exec">;
+
 ### build/checkpoint.d.ts#CheckpointDatabase
 export type CheckpointDatabase = Pick<SqlConnection, "prepare" | "isTransaction">;
 
@@ -277,6 +284,9 @@ export interface Checkpointed {
 
 ### build/checkpoint.d.ts#checkpoint
 export declare function checkpoint(db: CheckpointDatabase, mode?: CheckpointMode): Checkpointed;
+
+### build/checkpoint.d.ts#setAutocheckpoint
+export declare function setAutocheckpoint(db: AutocheckpointDatabase, pages: number): void;
 
 ### build/clear.d.ts#ClearOptions
 export interface ClearOptions {
@@ -331,6 +341,7 @@ export interface OpenOptions {
   readonly readOnly?: boolean | undefined;
   readonly synchronous?: Synchronous | undefined;
   readonly busyTimeoutMs?: number | undefined;
+  readonly autocheckpointPages?: number | undefined;
   readonly makeFolder?: boolean | undefined;
   readonly folderMode?: number | undefined;
 }
@@ -347,6 +358,8 @@ export declare function openDatabase(path: string, options?: OpenOptions): Datab
 ### build/event-log-file.d.ts#EventLogFile
 export interface EventLogFile<E extends LogRecord> extends EventLog<E> {
   close(): void;
+  checkpoint(mode?: CheckpointMode): Checkpointed;
+  setAutocheckpoint(pages: number): void;
 }
 
 ### build/event-log-file.d.ts#EventLogFileOptions

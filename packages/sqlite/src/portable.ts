@@ -47,6 +47,6 @@ export {
 export { FOLD_SNAPSHOT_PART, FOLD_SNAPSHOT_SCHEMA_VERSION, foldSnapshot, type ChunkOptions, type FoldKey, type FoldMark, type FoldRow, type FoldSnapshot, type MarkLog } from "./fold-snapshot.ts";
 export { SchemaError, type Parse, type StandardIssue, type StandardResult, type StandardSchema } from "./schema.ts";
 export { wasmConnection, type WasmConnection, type WasmDatabase, type WasmModule, type WasmStatement } from "./wasm.ts";
-export { checkpoint, type CheckpointDatabase, type CheckpointMode, type Checkpointed } from "./checkpoint.ts";
+export { checkpoint, setAutocheckpoint, type AutocheckpointDatabase, type CheckpointDatabase, type CheckpointMode, type Checkpointed } from "./checkpoint.ts";
 export { clearDatabase, type ClearOptions } from "./clear.ts";
 export { sqlJsConnection, type SqlJsConnection, type SqlJsDatabase, type SqlJsStatement, type SqlJsValue } from "./sqljs.ts";

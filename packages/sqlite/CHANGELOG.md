@@ -1,5 +1,17 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.7.0
+
+This version adds the control of the automatic checkpoint. A burst of large commits, for example the first pass of a start, can stop the automatic checkpoint and do one checkpoint at its end.
+
+- The new option `autocheckpointPages` of `openDatabase`, `openEventLog` and `openCheckedEventLog` sets the pragma `wal_autocheckpoint`. The default keeps the default of SQLite, 1000 pages. The value 0 turns the automatic checkpoint off.
+- `setAutocheckpoint` changes the pragma on an open connection, also in the portable entry.
+- A log file has two new members: `checkpoint(mode)` and `setAutocheckpoint(pages)`. The log owns its connection, thus these members are the only access to the checkpoint of its file.
+- With `synchronous` `FULL`, each commit syncs the WAL file. Thus the setting does not change what a crash keeps.
+- `EventLogFile` has new members. Code that makes its own object of the interface type also makes them. Thus the version is a MINOR change before 1.0.0.
+
+Runtime dependencies: none.
+
 ## 0.6.0
 
 This version keeps the tables of the snapshot at version 1, the version of 0.4. A start after an update from 0.4 reads its snapshot. A start after a return to 0.4 reads the snapshot of this version.

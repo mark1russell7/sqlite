@@ -33,6 +33,7 @@ describe("the entry", () => {
       "readTransaction",
       "salvageEventLog",
       "schemaVersion",
+      "setAutocheckpoint",
       "snapshot",
       "sqlJsConnection",
       "sqliteFault",

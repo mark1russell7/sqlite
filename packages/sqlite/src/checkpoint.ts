@@ -21,6 +21,33 @@ export interface Checkpointed {
   readonly checkpointed: number;
 }
 
+/** The part of a connection that `setAutocheckpoint` uses. */
+export type AutocheckpointDatabase = Pick<SqlConnection, "exec">;
+
+/**
+ * This function sets the pragma `wal_autocheckpoint` of a connection. Its value is the number of pages in the log that
+ * starts a checkpoint at the end of a commit. The default of SQLite is 1000. The value 0 turns the automatic checkpoint
+ * off.
+ *
+ * Each commit with `synchronous` `FULL` syncs the log, thus the setting does not change what a crash keeps. With the
+ * automatic checkpoint off, the log grows until a call of `checkpoint`. Turn it on again after a burst of large
+ * commits, for example the first pass of a start.
+ *
+ * @param db - The connection.
+ * @param pages - A whole number of pages, 0 or more.
+ */
+export function setAutocheckpoint(db: AutocheckpointDatabase, pages: number): void {
+  db.exec(`PRAGMA wal_autocheckpoint = ${String(checkPages(pages))}`);
+}
+
+/** This function gives the number of pages of `wal_autocheckpoint`, or throws a `RangeError` for a bad value. */
+export function checkPages(pages: number): number {
+  if (!Number.isInteger(pages) || pages < 0) {
+    throw new RangeError(`The pages of the automatic checkpoint must be a whole number of 0 or more, not ${String(pages)}.`);
+  }
+  return pages;
+}
+
 /** The part of a connection that a checkpoint uses. */
 export type CheckpointDatabase = Pick<SqlConnection, "prepare" | "isTransaction">;
 

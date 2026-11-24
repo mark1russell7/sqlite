@@ -145,6 +145,7 @@ describe("the portable entry", () => {
       "migrate",
       "readTransaction",
       "schemaVersion",
+      "setAutocheckpoint",
       "sqlJsConnection",
       "syncedTransaction",
       "tableColumns",
