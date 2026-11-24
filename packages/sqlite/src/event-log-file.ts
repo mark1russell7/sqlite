@@ -4,6 +4,7 @@
  * @packageDocumentation
  */
 import type { DatabaseSync } from "node:sqlite";
+import { checkpoint, setAutocheckpoint, type CheckpointMode, type Checkpointed } from "./checkpoint.ts";
 import { openDatabase, type OpenOptions } from "./database.ts";
 import { attach, DEFAULT_TABLE, logSteps, type Equal, type EventLog, type LogRecord } from "./event-log.ts";
 import { migrate } from "./migrate.ts";
@@ -13,6 +14,10 @@ import { parseFunction, type Parse } from "./schema.ts";
 export interface EventLogFile<E extends LogRecord> extends EventLog<E> {
   /** This function closes the connection of the log. */
   close(): void;
+  /** This function does a checkpoint of the log file, and gives its result. The rules of `checkpoint` apply. */
+  checkpoint(mode?: CheckpointMode): Checkpointed;
+  /** This function sets the pragma `wal_autocheckpoint` of the connection of the log. The rules of `setAutocheckpoint` apply. */
+  setAutocheckpoint(pages: number): void;
 }
 
 /** The options of `openEventLog`: the options of the connection, and the equality of events. */
@@ -51,6 +56,12 @@ export function logFileOn<E extends LogRecord>(db: DatabaseSync, parse: Parse<E>
       ...log,
       close() {
         db.close();
+      },
+      checkpoint(mode?: CheckpointMode) {
+        return checkpoint(db, mode);
+      },
+      setAutocheckpoint(pages: number) {
+        setAutocheckpoint(db, pages);
       },
     };
   } catch (error) {

@@ -26,6 +26,7 @@ const db = openDatabase("data/app.db", { synchronous: "NORMAL", busyTimeoutMs: 5
 | `readOnly` | `false` | The connection reads the file and cannot write it. The file must exist. The journal mode does not change. |
 | `synchronous` | `FULL` | The pragma `synchronous`. With WAL, `NORMAL` loses the commits after the last checkpoint at a power cut. The file stays good. See [What a power cut keeps](#what-a-power-cut-keeps). For the commits that must stay, refer to [Synced transactions](#synced-transactions). |
 | `busyTimeoutMs` | `0` | The time that a statement waits for the lock of a different connection. With `0`, the statement fails at once. |
+| `autocheckpointPages` | `1000` | The pragma `wal_autocheckpoint`: the pages in the WAL file that start a checkpoint at the end of a commit. With `0`, only a call of `checkpoint` copies the WAL file. `setAutocheckpoint` and the member `setAutocheckpoint` of a log file change it later. |
 | `makeFolder` | `false` | The function makes the folder of the file. `folderMode` sets the mode of the new folders. |
 
 Each default other than `wal` is the default of SQLite. Foreign keys are on, because `node:sqlite` turns them on for each connection.
@@ -60,7 +61,7 @@ A power cut loses each write that is not synced to the disk. The test `power/pow
 
 - `FULL` and `EXTRA` keep each commit. A commit is on the disk when its transaction ends.
 - With WAL, `NORMAL` keeps the commits up to the last checkpoint, and loses each commit after it. The function `checkpoint` and the close of the last connection make a checkpoint.
-- By default, SQLite also makes a checkpoint when the WAL file has 1,000 pages.
+- By default, SQLite also makes a checkpoint when the WAL file has 1,000 pages. With `autocheckpointPages: 0`, `NORMAL` can lose more commits, because the last checkpoint is older. `FULL` keeps each commit.
 - `OFF` keeps no commit, also after a checkpoint, because it makes no fsync.
 - On a connection with `NORMAL`, a commit of `syncedTransaction` syncs the WAL file. The disk keeps that commit and each commit before it.
 - With the journal `delete`, `NORMAL` kept each commit in this test. The documentation of SQLite tells of a small risk to the file on an old file system.

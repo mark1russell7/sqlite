@@ -6,6 +6,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { checkPages } from "./checkpoint.ts";
 import { NodeDatabase } from "./node-sqlite.ts";
 import { probeTransaction } from "./probe.ts";
 
@@ -47,6 +48,12 @@ export interface OpenOptions {
    * is 0: then the statement fails at once with "database is locked".
    */
   readonly busyTimeoutMs?: number | undefined;
+  /**
+   * This value is the pragma `wal_autocheckpoint`: the number of pages in the log that starts a checkpoint at the end
+   * of a commit. The default is the default of SQLite, 1000. The value 0 turns the automatic checkpoint off.
+   * `setAutocheckpoint` changes it later.
+   */
+  readonly autocheckpointPages?: number | undefined;
   /** This value makes the folder of the file when the folder is not there. The default is false. */
   readonly makeFolder?: boolean | undefined;
   /** This value is the mode of the folders that `makeFolder` makes, for example `0o700`. */
@@ -85,6 +92,7 @@ export function openDatabase(path: string, options: OpenOptions = {}): DatabaseS
   if (!Number.isInteger(busyTimeoutMs) || busyTimeoutMs < 0) {
     throw new RangeError(`The busy timeout must be a whole number of milliseconds of 0 or more, not ${String(busyTimeoutMs)}.`);
   }
+  const autocheckpointPages = options.autocheckpointPages === undefined ? undefined : checkPages(options.autocheckpointPages);
   const wal = options.wal ?? true;
   if (!WAL_MODES.includes(wal)) {
     throw new RangeError(`The value of wal must be true, false or "when-writable", not ${String(wal)}.`);
@@ -111,6 +119,7 @@ export function openDatabase(path: string, options: OpenOptions = {}): DatabaseS
       }
     }
     db.exec(`PRAGMA synchronous = ${synchronous}`);
+    if (autocheckpointPages !== undefined) db.exec(`PRAGMA wal_autocheckpoint = ${String(autocheckpointPages)}`);
   } catch (error) {
     db.close();
     throw error;
