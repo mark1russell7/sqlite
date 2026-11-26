@@ -64,17 +64,38 @@ function isBrokenFile(error: unknown): boolean {
  * @param options - The kind of check and the highest count of problems.
  */
 export function checkIntegrity(db: DatabaseSync, options: IntegrityOptions = {}): Integrity {
+  const sql = integritySql(options);
+  try {
+    const rows = db.prepare(sql).all() as Record<string, unknown>[];
+    return integrityOfLines(rows.map((row) => String(Object.values(row)[0])));
+  } catch (error) {
+    return integrityOfError(error);
+  }
+}
+
+/**
+ * This function gives the SQL of an integrity check. It throws a `RangeError` for a limit that is not a whole number
+ * of 1 or more.
+ *
+ * @param options - The kind of check and the highest count of problems.
+ */
+export function integritySql(options: IntegrityOptions): string {
   const limit = options.limit ?? 100;
   if (!Number.isInteger(limit) || limit < 1) throw new RangeError(`The limit of problems must be a whole number of 1 or more, not ${String(limit)}.`);
   const pragma = options.quick === true ? "quick_check" : "integrity_check";
-  try {
-    const rows = db.prepare(`PRAGMA ${pragma}(${String(limit)})`).all() as Record<string, unknown>[];
-    const problems = rows.map((row) => String(Object.values(row)[0])).filter((text) => text !== "ok");
-    return { ok: problems.length === 0, problems };
-  } catch (error) {
-    if (!isBrokenFile(error)) throw error;
-    return { ok: false, problems: [messageOf(error)] };
-  }
+  return `PRAGMA ${pragma}(${String(limit)})`;
+}
+
+/** This function gives the result of a check from the lines of its pragma. The line `ok` is not a problem. */
+export function integrityOfLines(lines: readonly string[]): Integrity {
+  const problems = lines.filter((text) => text !== "ok");
+  return { ok: problems.length === 0, problems };
+}
+
+/** This function gives the result of a check that threw. A fault of a broken file is a problem. It throws each other error. */
+export function integrityOfError(error: unknown): Integrity {
+  if (!isBrokenFile(error)) throw error;
+  return { ok: false, problems: [messageOf(error)] };
 }
 
 /** The options of `quarantine`. */

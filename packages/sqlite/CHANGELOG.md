@@ -1,5 +1,18 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.7.1
+
+This version adds an integrity check that does not stop the event loop. The check reads the whole file, so on a large file the checked open took many seconds.
+
+- The new option `check: false` of `openCheckedEventLog` turns off the check before the open. An open with no fault gives the new kind `unchecked`. The default does not change.
+- With `check: false`, the open still recovers a file with a broken-file fault, and a WAL file with no database file.
+- The new function `checkIntegrityInBackground(path, options)` does `PRAGMA quick_check` or `integrity_check` in a worker thread, on its own read-only connection. It gives the same result as `checkIntegrity`.
+- Its option `signal` stops the worker. SQLite does not stop in the middle of a pragma, so the thread ends at the end of the pragma.
+- The new types are `BackgroundCheckOptions`, `UncheckedEventLogOptions` and `UncheckedEventLog`. An overload gives the old result type to each call without `check: false`.
+- The change adds exports and an option with a default that keeps the old behavior. Thus the version is a PATCH change before 1.0.0.
+
+Runtime dependencies: none.
+
 ## 0.7.0
 
 This version adds the control of the automatic checkpoint. A burst of large commits, for example the first pass of a start, can stop the automatic checkpoint and do one checkpoint at its end.

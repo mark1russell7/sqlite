@@ -9,6 +9,7 @@
 type Accept: build/event-log.d.ts#Accept
 type Appended: build/event-log.d.ts#Appended
 type AutocheckpointDatabase: build/checkpoint.d.ts#AutocheckpointDatabase
+type BackgroundCheckOptions: build/background-check.d.ts#BackgroundCheckOptions
 BrokenLogError: build/event-log.d.ts#BrokenLogError
 type CheckedEventLog: build/checked-log.d.ts#CheckedEventLog
 type CheckedEventLogOptions: build/checked-log.d.ts#CheckedEventLogOptions
@@ -82,6 +83,8 @@ type SyncedTransactionDatabase: build/transaction.d.ts#SyncedTransactionDatabase
 type Synchronous: build/database.d.ts#Synchronous
 type TransactionDatabase: build/transaction.d.ts#TransactionDatabase
 type TransactionOptions: build/transaction.d.ts#TransactionOptions
+type UncheckedEventLog: build/checked-log.d.ts#UncheckedEventLog
+type UncheckedEventLogOptions: build/checked-log.d.ts#UncheckedEventLogOptions
 type WalMode: build/database.d.ts#WalMode
 type WasmConnection: build/wasm.d.ts#WasmConnection
 type WasmDatabase: build/wasm.d.ts#WasmDatabase
@@ -89,6 +92,7 @@ type WasmModule: build/wasm.d.ts#WasmModule
 type WasmStatement: build/wasm.d.ts#WasmStatement
 addMissingColumns: build/migrate.d.ts#addMissingColumns
 checkIntegrity: build/recovery.d.ts#checkIntegrity
+checkIntegrityInBackground: build/background-check.d.ts#checkIntegrityInBackground
 checkpoint: build/checkpoint.d.ts#checkpoint
 clearDatabase: build/clear.d.ts#clearDatabase
 confineToFile: build/confine.d.ts#confineToFile
@@ -198,6 +202,15 @@ wasmConnection: build/wasm.d.ts#wasmConnection
 
 ## Declarations
 
+### build/background-check.d.ts#BackgroundCheckOptions
+export interface BackgroundCheckOptions extends IntegrityOptions {
+  readonly busyTimeoutMs?: number | undefined;
+  readonly signal?: AbortSignal | undefined;
+}
+
+### build/background-check.d.ts#checkIntegrityInBackground
+export declare function checkIntegrityInBackground(path: string, options?: BackgroundCheckOptions): Promise<Integrity>;
+
 ### build/checked-log.d.ts#CheckedEventLog
 export type CheckedEventLog<E extends LogRecord> = {
   readonly kind: "created";
@@ -260,10 +273,24 @@ export interface SalvageCounts {
   readonly problems: readonly string[];
 }
 
+### build/checked-log.d.ts#UncheckedEventLog
+export type UncheckedEventLog<E extends LogRecord> = Exclude<CheckedEventLog<E>, {
+  readonly kind: "opened";
+}> | {
+  readonly kind: "unchecked";
+  readonly log: EventLogFile<E>;
+};
+
+### build/checked-log.d.ts#UncheckedEventLogOptions
+export interface UncheckedEventLogOptions<E> extends Omit<CheckedEventLogOptions<E>, "check"> {
+  readonly check: false;
+}
+
 ### build/checked-log.d.ts#listRecoveries
 export declare function listRecoveries(path: string, options?: Pick<QuarantineOptions, "folder">): readonly RecoveryEntry[];
 
 ### build/checked-log.d.ts#openCheckedEventLog
+export declare function openCheckedEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options: UncheckedEventLogOptions<E>): UncheckedEventLog<E>;
 export declare function openCheckedEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options?: CheckedEventLogOptions<E>): CheckedEventLog<E>;
 
 ### build/checkpoint.d.ts#AutocheckpointDatabase

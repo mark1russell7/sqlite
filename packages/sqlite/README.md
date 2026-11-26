@@ -461,6 +461,7 @@ A power cut, a bad disk or a copy of an open file can break a file. These functi
 | Function | What it does |
 | --- | --- |
 | `checkIntegrity(db, { quick, limit })` | It does `PRAGMA integrity_check` or `quick_check`, and gives `{ ok, problems }`. A file that is not a database gives a problem, not an error. |
+| `checkIntegrityInBackground(path, { quick, limit, signal })` | It does the same check in a worker thread, on its own read-only connection. The event loop of the caller continues. |
 | `quarantine(path)` | It moves the file and its WAL, SHM and journal files into a new folder `<name>.broken-<time>`. |
 | `openOrQuarantine(path, open)` | It opens the file. When the file is broken, it moves the file into quarantine and opens an empty file. |
 | `salvageEventLog(source, log, { parse })` | It reads the readable events of a broken log, and appends them to a new log. |
@@ -514,6 +515,7 @@ const { log } = opened;
 | `opened` | A file that passed its check. | `integrity` |
 | `recovered` | A broken file. It is in quarantine, and the new file has each event that the salvage kept. | `cause`, `quarantined`, `salvage: { kept, lost, problems }` |
 | `orphan-journal` | A WAL, SHM or journal file with no database file. It is in quarantine, and the log is a new file. | `quarantined` |
+| `unchecked` | With `check: false`, a file that opened with no fault. The function did no integrity check. | None |
 
 The recovery has four steps, and each step can be done again:
 
@@ -531,6 +533,28 @@ The recovery has four steps, and each step can be done again:
 - The read-only salvage can leave an empty WAL and SHM file next to the broken file. These files also go into quarantine.
 - After a crash, the `cause` of a fault comes from the record. Its `error` is a new `Error` with the message of SQLite.
 - Only one process at a time can recover a file.
+
+### A check after the open
+
+The check reads the whole file, so its time increases with the size of the file. An app can open with no check, and do the check in a worker thread after the open:
+
+```ts
+import { checkIntegrityInBackground, openCheckedEventLog } from "@mark1russell7/sqlite";
+
+const opened = openCheckedEventLog("data/events.db", parse, { busyTimeoutMs: 5000, check: false });
+const stop = new AbortController();
+const integrity = await checkIntegrityInBackground("data/events.db", { quick: true, signal: stop.signal });
+if (!integrity.ok) report(integrity.problems);
+```
+
+- With `check: false`, the open still recovers a file with a fault of the kind `corrupt` or `not-a-database`, and a WAL file with no database file.
+- A file with a broken page can open with no fault. Then only a check finds the broken page.
+- `checkIntegrityInBackground` gives the same `{ ok, problems }` as `checkIntegrity`. A path with no file rejects the promise.
+- With WAL, the check does not stop the writers. It examines the commits before its start.
+- The WAL file grows during the check, because a checkpoint does not go past the start of a reader.
+- An abort of the signal stops the worker, and the promise rejects with the reason of the signal.
+- SQLite does not stop in the middle of a pragma. Thus the thread ends at the end of the pragma, and an exit of the process waits for it.
+- A failed check does not move the file. To recover the file, the app does a next open with the check, for example at the next start.
 
 `listRecoveries(path)` gives each recovery from the records in the quarantine folders. A caller can report each recovery at each start:
 

@@ -84,7 +84,10 @@ export {
   type RecoveryCause,
   type RecoveryEntry,
   type SalvageCounts,
+  type UncheckedEventLog,
+  type UncheckedEventLogOptions,
 } from "./checked-log.ts";
+export { checkIntegrityInBackground, type BackgroundCheckOptions } from "./background-check.ts";
 export { SQLITE_FAULT_ACTIONS, sqliteFault, type SqliteFault, type SqliteFaultAction, type SqliteFaultKind } from "./faults.ts";
 
 /**
