@@ -15,6 +15,7 @@ describe("the entry", () => {
       "SchemaError",
       "addMissingColumns",
       "checkIntegrity",
+      "checkIntegrityInBackground",
       "checkpoint",
       "clearDatabase",
       "confineToFile",

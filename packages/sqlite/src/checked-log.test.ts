@@ -88,6 +88,31 @@ describe("openCheckedEventLog", () => {
     expect(readdirSync(folder)).toEqual(["log.db"]);
   });
 
+  it("does no check with check: false, so a file with a broken index root opens as unchecked", () => {
+    writeLog(file);
+    breakIndexRoot(file);
+    const result = openCheckedEventLog(file, parse, { ...options, check: false });
+    expect(result.kind).toBe("unchecked");
+    expect(result.log.count()).toBe(COUNT);
+    result.log.close();
+    expect(readdirSync(folder).filter((name) => !name.endsWith("-wal") && !name.endsWith("-shm"))).toEqual(["log.db"]);
+  });
+
+  it("still recovers a file that is not a database with check: false", () => {
+    writeFileSync(file, "This text is not a database. ".repeat(200));
+    const result = openCheckedEventLog(file, parse, { ...options, check: false });
+    if (result.kind !== "recovered") throw new Error(`The kind is ${result.kind}.`);
+    expect(result.cause.kind === "fault" && result.cause.fault).toMatchObject({ kind: "not-a-database", action: "quarantine" });
+    expect(result.log.count()).toBe(0);
+    result.log.close();
+  });
+
+  it("makes a new log with check: false when the path has no file", () => {
+    const result = openCheckedEventLog(file, parse, { ...options, check: false });
+    expect(result.kind).toBe("created");
+    result.log.close();
+  });
+
   it("moves a file with a broken index root into quarantine, and keeps each event", () => {
     for (const check of [{ quick: true }, { quick: false }]) {
       writeLog(file);

@@ -36,6 +36,15 @@ export interface CheckedEventLogOptions<E> extends EventLogFileOptions<E> {
   readonly quarantine?: QuarantineOptions | undefined;
 }
 
+/**
+ * The options of `openCheckedEventLog` with no integrity check before the open. The open still recovers a file with a
+ * broken-file fault, and a file with no database file.
+ */
+export interface UncheckedEventLogOptions<E> extends Omit<CheckedEventLogOptions<E>, "check"> {
+  /** This value turns off the integrity check before the open. `checkIntegrityInBackground` can do the check later. */
+  readonly check: false;
+}
+
 /** The cause of a recovery: a check that found problems, or a fault of a broken file in the open or in the migrate. */
 export type RecoveryCause = { readonly kind: "integrity"; readonly integrity: Integrity } | { readonly kind: "fault"; readonly fault: SqliteFault };
 
@@ -68,6 +77,12 @@ export type CheckedEventLog<E extends LogRecord> =
       readonly salvage: SalvageCounts;
     }
   | { readonly kind: "orphan-journal"; readonly log: EventLogFile<E>; readonly quarantined: Quarantined };
+
+/**
+ * The result of `openCheckedEventLog` with `check: false`. The kind `unchecked` replaces the kind `opened`: a file that
+ * opened with no fault, and with no integrity check.
+ */
+export type UncheckedEventLog<E extends LogRecord> = Exclude<CheckedEventLog<E>, { readonly kind: "opened" }> | { readonly kind: "unchecked"; readonly log: EventLogFile<E> };
 
 /**
  * One recovery of `openCheckedEventLog`, from the record in its quarantine folder. The value of `kind` tells what the
@@ -121,12 +136,21 @@ const recordOf = (path: string): string => `${path}.recovery.json`;
  * caller and moves nothing, for example a lock that is not free. With `readOnly`, the function moves nothing: a check
  * that fails throws an `IntegrityError`, and a fault throws its error. Only one process at a time can recover a file.
  *
+ * With `check: false`, the function does no integrity check, and an open with no fault gives the kind `unchecked`.
+ * The open of a large file is then fast. `checkIntegrityInBackground` can do the check after the open.
+ *
  * @param path - The path of the file, or `:memory:`.
  * @param parse - The parse of a stored JSON value into an event. It is a function or a validator of the Standard Schema.
  * @param options - The options of `openEventLog`, the check and the quarantine.
  */
-export function openCheckedEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options: CheckedEventLogOptions<E> = {}): CheckedEventLog<E> {
-  return openCheckedEventLogWith(path, parse, options, () => undefined);
+export function openCheckedEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options: UncheckedEventLogOptions<E>): UncheckedEventLog<E>;
+export function openCheckedEventLog<E extends LogRecord>(path: string, parse: Parse<E>, options?: CheckedEventLogOptions<E>): CheckedEventLog<E>;
+export function openCheckedEventLog<E extends LogRecord>(
+  path: string,
+  parse: Parse<E>,
+  options: CheckedEventLogOptions<E> | UncheckedEventLogOptions<E> = {},
+): CheckedEventLog<E> | UncheckedEventLog<E> {
+  return openWith(path, parse, options, () => undefined);
 }
 
 /**
@@ -135,7 +159,24 @@ export function openCheckedEventLog<E extends LogRecord>(path: string, parse: Pa
  *
  * @param seam - The function that gets the name of each step after the step.
  */
-export function openCheckedEventLogWith<E extends LogRecord>(path: string, parse: Parse<E>, options: CheckedEventLogOptions<E>, seam: (step: string) => void): CheckedEventLog<E> {
+export function openCheckedEventLogWith<E extends LogRecord>(path: string, parse: Parse<E>, options: UncheckedEventLogOptions<E>, seam: (step: string) => void): UncheckedEventLog<E>;
+export function openCheckedEventLogWith<E extends LogRecord>(path: string, parse: Parse<E>, options: CheckedEventLogOptions<E>, seam: (step: string) => void): CheckedEventLog<E>;
+export function openCheckedEventLogWith<E extends LogRecord>(
+  path: string,
+  parse: Parse<E>,
+  options: CheckedEventLogOptions<E> | UncheckedEventLogOptions<E>,
+  seam: (step: string) => void,
+): CheckedEventLog<E> | UncheckedEventLog<E> {
+  return openWith(path, parse, options, seam);
+}
+
+/** This function is the body of `openCheckedEventLog` and `openCheckedEventLogWith`. It takes each kind of options. */
+function openWith<E extends LogRecord>(
+  path: string,
+  parse: Parse<E>,
+  options: CheckedEventLogOptions<E> | UncheckedEventLogOptions<E>,
+  seam: (step: string) => void,
+): CheckedEventLog<E> | UncheckedEventLog<E> {
   const { check = { quick: true }, quarantine: given = {}, ...logOptions } = options;
   if (path === ":memory:" || path === "") return { kind: "created", log: openEventLog(path, parse, logOptions) };
   // One time gives the name of the folder and the time of the record
@@ -160,7 +201,7 @@ export function openCheckedEventLogWith<E extends LogRecord>(path: string, parse
   }
 
   const first = checkAndOpen(path, parse, logOptions, check);
-  if (first.kind === "opened") return first;
+  if (first.kind !== "broken") return first;
   if (readOnly) {
     if (first.cause.kind === "integrity") throw new IntegrityError(first.cause.integrity.problems);
     throw first.error;
@@ -190,16 +231,23 @@ export function openCheckedEventLogWith<E extends LogRecord>(path: string, parse
   return result.kind === "recovered" ? { ...result, cause: first.cause } : result;
 }
 
-/** The result of the first open: a log that passed its check, or the cause of a recovery. */
+/** The result of the first open: a log that passed its check, a log with no check, or the cause of a recovery. */
 type FirstOpen<E extends LogRecord> =
   | { readonly kind: "opened"; readonly log: EventLogFile<E>; readonly integrity: Integrity }
+  | { readonly kind: "unchecked"; readonly log: EventLogFile<E> }
   | { readonly kind: "broken"; readonly cause: RecoveryCause; readonly error: unknown };
 
-/** This function opens the file, does the check, and makes the log on the same connection. */
-function checkAndOpen<E extends LogRecord>(path: string, parse: Parse<E>, options: EventLogFileOptions<E>, check: IntegrityOptions): FirstOpen<E> {
+/** This function opens the file, does the check, and makes the log on the same connection. With `false`, it does no check. */
+function checkAndOpen<E extends LogRecord>(path: string, parse: Parse<E>, options: EventLogFileOptions<E>, check: IntegrityOptions | false): FirstOpen<E> {
   let db: DatabaseSync | undefined;
   try {
     db = openDatabase(path, options);
+    if (check === false) {
+      const owned = db;
+      // From here, the log owns the connection. It closes the connection when it throws.
+      db = undefined;
+      return { kind: "unchecked", log: logFileOn(owned, parse, options.equal) };
+    }
     const integrity = checkIntegrity(db, check);
     const owned = db;
     // From here, the log owns the connection, or this function closes it
