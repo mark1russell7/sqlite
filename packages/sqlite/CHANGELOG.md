@@ -1,5 +1,9 @@
 # Changelog of @mark1russell7/sqlite
 
+## 0.7.2
+
+An automated dependency update changes the shipped files, so this PATCH ships them.
+
 ## 0.7.1
 
 This version adds an integrity check that does not stop the event loop. The check reads the whole file, so on a large file the checked open took many seconds.
