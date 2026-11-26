@@ -180,13 +180,13 @@ importers:
     devDependencies:
       '@mark1russell7/api-report':
         specifier: ^0.5.5
-        version: 0.5.20
+        version: 0.5.21
       '@mark1russell7/boundaries':
         specifier: ^0.3.2
         version: 0.3.2(@swc/core@1.16.22)(dependency-cruiser@18.8.0)
       '@mark1russell7/conventions':
-        specifier: ^0.52.0
-        version: 0.52.0
+        specifier: ^0.53.0
+        version: 0.53.0
       '@mark1russell7/cue':
         specifier: ^2.0.0
         version: 2.1.4
@@ -222,7 +222,7 @@ importers:
         version: 2.1.4
       '@mark1russell7/site-pages':
         specifier: ^0.8.0
-        version: 0.8.4
+        version: 0.8.6
       '@mark1russell7/sqlite':
         specifier: workspace:*
         version: link:../sqlite
@@ -537,8 +537,8 @@ packages:
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
 
-  '@mark1russell7/api-report@0.5.20':
-    resolution: {integrity: sha512-4F8BCWeZ8NQMAdh36MAIvn58wzSlsUdhAY4j2KuyejMtl2x1xkH9FWPKIa5d6krkMnvZyZIktgHuSuV27uUixQ==}
+  '@mark1russell7/api-report@0.5.21':
+    resolution: {integrity: sha512-OqjA6ti0bb1P4wuAU6ukfH6OaAampo+wrKnPKXwU3wy9bSW/sBmAvc225jkV3E4zRYghuUB4veCQNiLtOJGHRQ==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -554,8 +554,8 @@ packages:
       dependency-cruiser:
         optional: true
 
-  '@mark1russell7/conventions@0.52.0':
-    resolution: {integrity: sha512-jxqFxbMf8dtahUyqYLSjxcHJ4wxMjmAPlODfnzxA3884PqG+WjpuLXjh1nZaRKdmVMIqRBhvNX+m7tL1hwSEvw==}
+  '@mark1russell7/conventions@0.53.0':
+    resolution: {integrity: sha512-OgUUxjMTipJy1Hk32vVk6T0dpkxVNtaotX90xmrc4fKyo7AH/Efvz4GbY35YxcgVwtC5SYdolrQ0zwH6i2Tz1A==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -651,8 +651,8 @@ packages:
       ltx:
         optional: true
 
-  '@mark1russell7/site-pages@0.8.4':
-    resolution: {integrity: sha512-pC0qcQqIsfQg5jTg+peUP/DGBXb4d1PQYiu6TCeCE1ALc5X8nyGhj9vMYKBCdhK7uHm8Chtx7INLKPWPmxpK3w==}
+  '@mark1russell7/site-pages@0.8.6':
+    resolution: {integrity: sha512-WX/2Sna3H1bzLSleYuKQYuzrLF7kQjSMG79Pnysw0v1mNga95t18bS82u/zfQksPiZSicXSLmR+ye5YHfYNx4w==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -670,8 +670,8 @@ packages:
     resolution: {integrity: sha512-8Tu7DTTpfmpXIy0F2JCyOW1RD91X7tm38c5xiqz3cLdmEkUQViH/06kTBLj+hrzuQPMBGVyxd7snqVG6EpNLdQ==}
     engines: {node: '>=22.12'}
 
-  '@mark1russell7/text@0.0.18':
-    resolution: {integrity: sha512-sIOsTkBOhWLSDyE4qKyiokUT84NPJgPuhLPDyh2Y+mjGnNbGhF9Q6dt9NnSBtSW8C1D0rZfx8fPJ53g0gQGWfQ==}
+  '@mark1russell7/text@0.0.19':
+    resolution: {integrity: sha512-pPJV318wzfEcsnnzlqVu+OBp/o9VLKWsAo1Wkf4rNaerOjgINDo+vErhmtPVQw6BzcVmGn4brXmMLcosCT9sAw==}
     engines: {node: '>=22.12'}
 
   '@napi-rs/wasm-runtime@1.2.6':
@@ -2447,18 +2447,18 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mark1russell7/api-report@0.5.20':
+  '@mark1russell7/api-report@0.5.21':
     dependencies:
-      '@mark1russell7/conventions': 0.52.0
+      '@mark1russell7/conventions': 0.53.0
 
   '@mark1russell7/boundaries@0.3.2(@swc/core@1.16.22)(dependency-cruiser@18.8.0)':
     optionalDependencies:
       '@swc/core': 1.16.22
       dependency-cruiser: 18.8.0
 
-  '@mark1russell7/conventions@0.52.0':
+  '@mark1russell7/conventions@0.53.0':
     dependencies:
-      '@mark1russell7/text': 0.0.18
+      '@mark1russell7/text': 0.0.19
       yaml: 2.9.1
 
   '@mark1russell7/cue@2.1.4': {}
@@ -2529,7 +2529,7 @@ snapshots:
       '@mark1russell7/rigor-generators': 0.2.0
       fast-check: 4.10.3
 
-  '@mark1russell7/site-pages@0.8.4':
+  '@mark1russell7/site-pages@0.8.6':
     dependencies:
       '@mark1russell7/rigor-statistics': 0.2.10
 
@@ -2544,7 +2544,7 @@ snapshots:
 
   '@mark1russell7/text@0.0.13': {}
 
-  '@mark1russell7/text@0.0.18': {}
+  '@mark1russell7/text@0.0.19': {}
 
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@2.0.0-beta.2)(@emnapi/runtime@2.0.0-beta.2)':
     dependencies:
